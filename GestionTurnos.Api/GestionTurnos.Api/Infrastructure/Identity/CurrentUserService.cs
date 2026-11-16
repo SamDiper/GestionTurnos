@@ -50,10 +50,13 @@ public class CurrentUserService : ICurrentUserService
             var httpContext = _httpContextAccessor.HttpContext;
             if (httpContext == null) return null;
 
+            // Solo se acepta una IP válida: el valor se guarda en auditoria.bitacora_negocio.ip_origen (inet)
+            // y un texto arbitrario en el encabezado haría fallar el disparador de auditoría en PostgreSQL.
             string? forwardedFor = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-            if (!string.IsNullOrWhiteSpace(forwardedFor))
+            if (!string.IsNullOrWhiteSpace(forwardedFor) &&
+                System.Net.IPAddress.TryParse(forwardedFor.Split(',')[0].Trim(), out var ipReenviada))
             {
-                return forwardedFor.Split(',')[0].Trim();
+                return ipReenviada.ToString();
             }
 
             return httpContext.Connection.RemoteIpAddress?.ToString();
