@@ -33,8 +33,19 @@ public sealed class LiquidacionHorasCalculator : ILiquidacionHorasCalculator
                 .ThenInclude(a => a!.Turno)
             .FirstOrDefaultAsync(r => r.IdRegistro == idRegistro, cancellationToken);
 
-        if (registro is null || !registro.HoraSalida.HasValue || registro.HoraSalida.Value <= registro.HoraEntrada)
+        if (registro is null)
         {
+            return;
+        }
+
+        // Un registro sin salida (por ejemplo, una corrección que quita la salida) no tiene horas:
+        // se borra el detalle anterior para que no siga contando.
+        if (!registro.HoraSalida.HasValue || registro.HoraSalida.Value <= registro.HoraEntrada)
+        {
+            var detallePrevio = await _context.DetallesHoras
+                .Where(d => d.IdRegistro == idRegistro)
+                .ToListAsync(cancellationToken);
+            _context.DetallesHoras.RemoveRange(detallePrevio);
             return;
         }
 
@@ -61,15 +72,31 @@ public sealed class LiquidacionHorasCalculator : ILiquidacionHorasCalculator
                         entrada < n.Fin)
             .ToListAsync(cancellationToken);
 
+        // Se unen los intervalos antes de sumar: dos novedades superpuestas no descuentan el mismo tiempo dos veces.
         int minutosDescuentoNovedades = 0;
-        foreach (var nov in novedadesQueAfectan)
+        DateTimeOffset? tramoInicio = null, tramoFin = null;
+        foreach (var nov in novedadesQueAfectan
+                     .Select(n => (Inicio: n.Inicio > entrada ? n.Inicio : entrada, Fin: n.Fin < salida ? n.Fin : salida))
+                     .Where(t => t.Fin > t.Inicio)
+                     .OrderBy(t => t.Inicio))
         {
-            var inicioCruce = nov.Inicio > entrada ? nov.Inicio : entrada;
-            var finCruce = nov.Fin < salida ? nov.Fin : salida;
-            if (finCruce > inicioCruce)
+            if (tramoFin is null || nov.Inicio > tramoFin)
             {
-                minutosDescuentoNovedades += (int)Math.Round((finCruce - inicioCruce).TotalMinutes);
+                if (tramoFin is not null)
+                {
+                    minutosDescuentoNovedades += (int)Math.Round((tramoFin.Value - tramoInicio!.Value).TotalMinutes);
+                }
+                tramoInicio = nov.Inicio;
+                tramoFin = nov.Fin;
             }
+            else if (nov.Fin > tramoFin)
+            {
+                tramoFin = nov.Fin;
+            }
+        }
+        if (tramoFin is not null)
+        {
+            minutosDescuentoNovedades += (int)Math.Round((tramoFin.Value - tramoInicio!.Value).TotalMinutes);
         }
 
         int minutosNetos = Math.Max(0, minutosBrutos - minutosDescanso - minutosDescuentoNovedades);
