@@ -41,10 +41,12 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Seguridad
         services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
+        services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 
-        // Contexto e Identidad
+        // Contexto e Identidad (incluye resolución obligatoria de id_empleado activo desde BD)
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<IEmpleadoSesionService, EmpleadoSesionService>();
 
         // Generación de Documentos PDF y Renderizado de Plantillas
         services.AddSingleton(typeof(WkHtmlToPdfDotNet.Contracts.IConverter), new WkHtmlToPdfDotNet.SynchronizedConverter(new WkHtmlToPdfDotNet.PdfTools()));

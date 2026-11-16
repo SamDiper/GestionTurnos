@@ -8,14 +8,14 @@ using Microsoft.IdentityModel.Tokens;
 namespace GestionTurnos.Api.Presentation.Extensions;
 
 /// <summary>
-/// Métodos de extensión para configurar la seguridad (Autenticación y Autorización) en el contenedor de dependencias.
+/// Métodos de extensión para configurar la seguridad (Autenticación JWT y Autorización basada en permisos).
 /// </summary>
 public static class SecurityServiceCollectionExtensions
 {
     public static IServiceCollection AddSecurity(this IServiceCollection services, IConfiguration configuration)
     {
         var jwtSettings = configuration.GetSection("Jwt");
-        var secretKey = jwtSettings["Key"] ?? "ClaveSeguraTemporalParaTokensJwt2026!Caqueta";
+        var secretKey = jwtSettings["Key"] ?? "ClaveSeguraTemporalParaTokensJwt2026!GestionTurnos";
 
         services.AddAuthentication(options =>
         {
@@ -67,26 +67,10 @@ public static class SecurityServiceCollectionExtensions
 
         services.AddAuthorization(options =>
         {
-            options.AddPolicy(PoliticasSeguridad.Gobernacion, policy =>
-                policy.RequireAuthenticatedUser()
-                      .RequireClaim("TipoEntidad", TiposEntidadSeguridad.GOBERNACION));
-
-            options.AddPolicy(PoliticasSeguridad.Contribuyente, policy =>
-                policy.RequireAuthenticatedUser()
-                      .RequireClaim("TipoEntidad", TiposEntidadSeguridad.CONTRIBUYENTE));
-
-            options.AddPolicy(PoliticasSeguridad.Municipio, policy =>
-                policy.RequireAuthenticatedUser()
-                      .RequireClaim("TipoEntidad", TiposEntidadSeguridad.MUNICIPIO));
-
-            options.AddPolicy(PoliticasSeguridad.Externo, policy =>
-                policy.RequireAuthenticatedUser()
-                      .RequireAssertion(ctx =>
-                          ctx.User.HasClaim("TipoEntidad", TiposEntidadSeguridad.CONTRIBUYENTE) ||
-                          ctx.User.HasClaim("TipoEntidad", TiposEntidadSeguridad.MUNICIPIO)));
+            options.AddPolicy(PoliticasSeguridad.Autenticado, policy =>
+                policy.RequireAuthenticatedUser());
         });
 
         return services;
     }
 }
-
