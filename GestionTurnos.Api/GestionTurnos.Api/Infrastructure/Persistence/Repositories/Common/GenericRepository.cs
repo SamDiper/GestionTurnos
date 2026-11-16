@@ -30,6 +30,29 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
     }
 
     /// <inheritdoc />
+    public async Task<T?> GetByIdAsync(long id, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet.FindAsync(new object[] { id }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<T?> GetByIdAsync(string code, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet.FindAsync(new object[] { code }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> expression, bool asNoTracking = false, CancellationToken cancellationToken = default)
+    {
+        IQueryable<T> query = _dbSet.Where(expression);
+
+        if (asNoTracking)
+            query = query.AsNoTracking();
+
+        return await query.FirstOrDefaultAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<T>> GetAllAsync(bool asNoTracking = false, CancellationToken cancellationToken = default)
     {
         IQueryable<T> query = _dbSet;

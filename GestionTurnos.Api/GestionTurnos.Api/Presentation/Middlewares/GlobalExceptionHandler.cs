@@ -1,3 +1,5 @@
+using GestionTurnos.Api.Domain.Shared;
+using GestionTurnos.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -21,9 +23,49 @@ public class GlobalExceptionHandler : IExceptionHandler
         Exception exception,
         CancellationToken cancellationToken)
     {
+        // 1. Verificar si es un error de base de datos traducible (Sección 1 - RNF-01)
+        if (DatabaseErrorTranslator.TryTranslate(exception, out var translatedError) && translatedError is not null)
+        {
+            _logger.LogWarning(
+                exception,
+                "Restricción de base de datos traducida [{ErrorCode}]: {Message}",
+                translatedError.Code,
+                translatedError.Message);
+
+            var statusCode = translatedError.Type switch
+            {
+                ErrorType.Conflict => StatusCodes.Status409Conflict,
+                ErrorType.NotFound => StatusCodes.Status404NotFound,
+                ErrorType.Unauthorized => StatusCodes.Status401Unauthorized,
+                ErrorType.Forbidden => StatusCodes.Status403Forbidden,
+                _ => StatusCodes.Status400BadRequest
+            };
+
+            var title = translatedError.Type switch
+            {
+                ErrorType.Conflict => "Conflicto",
+                ErrorType.NotFound => "Recurso no encontrado",
+                _ => "Solicitud inválida"
+            };
+
+            var dbProblemDetails = new ProblemDetails
+            {
+                Status = statusCode,
+                Title = title,
+                Detail = translatedError.Message,
+                Instance = httpContext.Request.Path
+            };
+            dbProblemDetails.Extensions["code"] = translatedError.Code;
+            dbProblemDetails.Extensions["traceId"] = httpContext.TraceIdentifier;
+
+            httpContext.Response.StatusCode = statusCode;
+            await httpContext.Response.WriteAsJsonAsync(dbProblemDetails, cancellationToken);
+            return true;
+        }
+
         _logger.LogError(exception, "Exception occurred: {Message}", exception.Message);
 
-        var (statusCode, title, type) = exception switch
+        var (unhandledStatusCode, unhandledTitle, type) = exception switch
         {
             DbUpdateConcurrencyException => (
                 StatusCodes.Status409Conflict,
@@ -40,11 +82,13 @@ public class GlobalExceptionHandler : IExceptionHandler
         var env = httpContext.RequestServices.GetService(typeof(IHostEnvironment)) as IHostEnvironment;
         var problemDetails = new ProblemDetails
         {
-            Status = statusCode,
-            Title = title,
+            Status = unhandledStatusCode,
+            Title = unhandledTitle,
             Type = type,
-            Detail = env?.IsDevelopment() == true ? exception.Message : null
+            Detail = env?.IsDevelopment() == true ? exception.Message : null,
+            Instance = httpContext.Request.Path
         };
+        problemDetails.Extensions["traceId"] = httpContext.TraceIdentifier;
 
         httpContext.Response.StatusCode = problemDetails.Status.Value;
 
@@ -53,4 +97,3 @@ public class GlobalExceptionHandler : IExceptionHandler
         return true;
     }
 }
-
