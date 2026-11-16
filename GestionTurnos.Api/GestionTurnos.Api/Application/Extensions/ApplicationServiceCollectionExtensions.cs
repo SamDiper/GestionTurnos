@@ -1,6 +1,7 @@
 using System.Reflection;
 using FluentValidation;
 using GestionTurnos.Api.Application.Behaviors;
+using GestionTurnos.Api.Application.Interfaces;
 using Mapster;
 using MapsterMapper;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +33,10 @@ public static class ApplicationServiceCollectionExtensions
         config.Scan(Assembly.GetExecutingAssembly());
         services.AddSingleton(config);
         services.AddScoped<IMapper, ServiceMapper>();
+
+        // Calculadores aislados de reglas de negocio (Secciones 3.7 y 6.3)
+        services.AddScoped<ILiquidacionHorasCalculator, Calculators.LiquidacionHorasCalculator>();
+        services.AddScoped<IDiasVacacionesCalculator, Calculators.DiasVacacionesCalculator>();
 
         return services;
     }
