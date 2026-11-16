@@ -16,6 +16,10 @@ public sealed class AuditoriaController : BaseApiController
     {
     }
 
+    /// <summary>
+    /// Consulta paginada de la bitácora (más reciente primero) por empleado, usuario, rango de fechas, tipo de acción y tabla.
+    /// Solo lectura: no existe ningún endpoint que modifique o borre la bitácora.
+    /// </summary>
     [HttpGet("bitacora")]
     public async Task<IActionResult> ConsultarBitacora(
         [FromQuery] long? idEmpleado,
@@ -40,6 +44,23 @@ public sealed class AuditoriaController : BaseApiController
             pageNumber,
             pageSize);
 
+        var result = await Sender.Send(query, cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Historial de cambios de un registro concreto (por ejemplo: turnos / asignacion / 125), del más reciente al más antiguo.
+    /// </summary>
+    [HttpGet("bitacora/{esquema}/{tabla}/{idRegistro}")]
+    public async Task<IActionResult> ObtenerHistorialRegistro(
+        string esquema,
+        string tabla,
+        string idRegistro,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken cancellationToken = default)
+    {
+        var query = new ObtenerHistorialRegistroQuery(esquema, tabla, idRegistro, pageNumber, pageSize);
         var result = await Sender.Send(query, cancellationToken);
         return HandleResult(result);
     }

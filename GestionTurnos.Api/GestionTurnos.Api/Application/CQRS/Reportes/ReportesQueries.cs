@@ -26,17 +26,15 @@ public sealed record ReporteCumplimientoTurnosQuery(
     bool? SoloSinAsistencia = null,
     bool? SoloConRetardo = null,
     int PageNumber = 1,
-    int PageSize = 50) : IRequest<Result<PagedResult<ReporteCumplimientoTurnoDto>>>;
+    int PageSize = 50,
+    string? CodEstadoAsignacion = null)
+    : IRequest<Result<PagedResult<ReporteCumplimientoTurnoDto>>>, IReporteConRangoFechas;
 
 public sealed class ReporteCumplimientoTurnosQueryValidator : AbstractValidator<ReporteCumplimientoTurnosQuery>
 {
     public ReporteCumplimientoTurnosQueryValidator()
     {
-        RuleFor(x => x.FechaDesde).NotEmpty();
-        RuleFor(x => x.FechaHasta)
-            .NotEmpty()
-            .GreaterThanOrEqualTo(x => x.FechaDesde)
-            .WithMessage("La fecha final debe ser mayor o igual a la fecha inicial.");
+        this.AplicarReglasRangoReporte();
     }
 }
 
@@ -52,9 +50,10 @@ public sealed class ReporteCumplimientoTurnosQueryHandler
         CancellationToken cancellationToken)
     {
         int pageNumber = Math.Max(request.PageNumber, 1);
-        int pageSize = Math.Clamp(request.PageSize, 1, 50);
+        int pageSize = Math.Clamp(request.PageSize, 1, RangoFechasReporte.PageSizeMaximo);
 
         var query = from v in _context.VistaHorasPorTurno.AsNoTracking()
+                    join asig in _context.Asignaciones.AsNoTracking() on v.IdAsignacion equals asig.IdAsignacion
                     join emp in _context.Empleados.AsNoTracking() on v.IdEmpleado equals emp.IdEmpleado
                     join area in _context.Areas.AsNoTracking() on emp.IdArea equals area.IdArea
                     join cargo in _context.Cargos.AsNoTracking() on emp.IdCargo equals cargo.IdCargo
@@ -78,8 +77,15 @@ public sealed class ReporteCumplimientoTurnosQueryHandler
                         v.HoraEntrada,
                         v.HoraSalida,
                         v.MinutosTarde,
-                        v.SinAsistencia
+                        v.SinAsistencia,
+                        asig.CodEstadoAsignacion
                     };
+
+        var estadoAsignacion = RangoFechasReporte.NormalizarCodigo(request.CodEstadoAsignacion);
+        if (estadoAsignacion is not null)
+        {
+            query = query.Where(x => x.CodEstadoAsignacion == estadoAsignacion);
+        }
 
         if (request.IdEmpleado.HasValue)
         {
@@ -116,6 +122,7 @@ public sealed class ReporteCumplimientoTurnosQueryHandler
         var items = await query
             .OrderByDescending(x => x.Fecha)
             .ThenBy(x => x.NombreEmpleado)
+            .ThenBy(x => x.IdAsignacion)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .Select(x => new ReporteCumplimientoTurnoDto(
@@ -149,15 +156,17 @@ public sealed record ReporteConsolidadoPorEmpleadoQuery(
     DateOnly FechaHasta,
     int? IdArea = null,
     int? IdCargo = null,
-    long? IdEmpleado = null) : IRequest<Result<IReadOnlyList<ReporteConsolidadoEmpleadoDto>>>;
+    long? IdEmpleado = null,
+    int? IdTurno = null,
+    string? CodEstadoAsignacion = null)
+    : IRequest<Result<IReadOnlyList<ReporteConsolidadoEmpleadoDto>>>, IReporteConRangoFechas;
 
 public sealed class ReporteConsolidadoPorEmpleadoQueryValidator
     : AbstractValidator<ReporteConsolidadoPorEmpleadoQuery>
 {
     public ReporteConsolidadoPorEmpleadoQueryValidator()
     {
-        RuleFor(x => x.FechaDesde).NotEmpty();
-        RuleFor(x => x.FechaHasta).NotEmpty().GreaterThanOrEqualTo(x => x.FechaDesde);
+        this.AplicarReglasRangoReporte();
     }
 }
 
@@ -172,7 +181,9 @@ public sealed class ReporteConsolidadoPorEmpleadoQueryHandler
         ReporteConsolidadoPorEmpleadoQuery request,
         CancellationToken cancellationToken)
     {
+        // Horas trabajadas por empleado (sección 14): programadas, trabajadas, diferencia y turnos sin asistencia.
         var query = from v in _context.VistaHorasPorTurno.AsNoTracking()
+                    join asig in _context.Asignaciones.AsNoTracking() on v.IdAsignacion equals asig.IdAsignacion
                     join emp in _context.Empleados.AsNoTracking() on v.IdEmpleado equals emp.IdEmpleado
                     join area in _context.Areas.AsNoTracking() on emp.IdArea equals area.IdArea
                     join cargo in _context.Cargos.AsNoTracking() on emp.IdCargo equals cargo.IdCargo
@@ -180,6 +191,8 @@ public sealed class ReporteConsolidadoPorEmpleadoQueryHandler
                     select new
                     {
                         v.IdEmpleado,
+                        v.IdTurno,
+                        asig.CodEstadoAsignacion,
                         emp.NumeroDocumento,
                         NombreEmpleado = emp.Nombres + " " + emp.Apellidos,
                         emp.IdArea,
@@ -207,9 +220,19 @@ public sealed class ReporteConsolidadoPorEmpleadoQueryHandler
             query = query.Where(x => x.IdCargo == request.IdCargo.Value);
         }
 
-        var filas = await query.ToListAsync(cancellationToken);
+        if (request.IdTurno.HasValue)
+        {
+            query = query.Where(x => x.IdTurno == request.IdTurno.Value);
+        }
 
-        var consolidado = filas
+        var estadoAsignacion = RangoFechasReporte.NormalizarCodigo(request.CodEstadoAsignacion);
+        if (estadoAsignacion is not null)
+        {
+            query = query.Where(x => x.CodEstadoAsignacion == estadoAsignacion);
+        }
+
+        // La agregación se hace en la base de datos (GROUP BY): un año de turnos no se trae a memoria.
+        var agrupado = await query
             .GroupBy(x => new
             {
                 x.IdEmpleado,
@@ -218,24 +241,36 @@ public sealed class ReporteConsolidadoPorEmpleadoQueryHandler
                 x.NombreArea,
                 x.NombreCargo
             })
-            .OrderBy(g => g.Key.NombreEmpleado)
-            .Select(g =>
+            .Select(g => new
             {
-                int programados = g.Sum(x => x.MinutosProgramados);
-                int trabajados = g.Sum(x => x.MinutosTrabajados);
-                return new ReporteConsolidadoEmpleadoDto(
-                    g.Key.IdEmpleado,
-                    g.Key.NumeroDocumento,
-                    g.Key.NombreEmpleado,
-                    g.Key.NombreArea,
-                    g.Key.NombreCargo,
-                    g.Count(),
-                    g.Count(x => x.SinAsistencia),
-                    programados,
-                    trabajados,
-                    trabajados - programados,
-                    g.Sum(x => x.MinutosTarde));
+                g.Key.IdEmpleado,
+                g.Key.NumeroDocumento,
+                g.Key.NombreEmpleado,
+                g.Key.NombreArea,
+                g.Key.NombreCargo,
+                TotalTurnos = g.Count(),
+                TurnosSinAsistencia = g.Count(x => x.SinAsistencia),
+                MinutosProgramados = g.Sum(x => x.MinutosProgramados),
+                MinutosTrabajados = g.Sum(x => x.MinutosTrabajados),
+                MinutosTarde = g.Sum(x => x.MinutosTarde)
             })
+            .OrderBy(x => x.NombreEmpleado)
+            .ThenBy(x => x.IdEmpleado)
+            .ToListAsync(cancellationToken);
+
+        var consolidado = agrupado
+            .Select(x => new ReporteConsolidadoEmpleadoDto(
+                x.IdEmpleado,
+                x.NumeroDocumento,
+                x.NombreEmpleado,
+                x.NombreArea,
+                x.NombreCargo,
+                x.TotalTurnos,
+                x.TurnosSinAsistencia,
+                x.MinutosProgramados,
+                x.MinutosTrabajados,
+                x.MinutosTrabajados - x.MinutosProgramados,
+                x.MinutosTarde))
             .ToList();
 
         return Result.Success<IReadOnlyList<ReporteConsolidadoEmpleadoDto>>(consolidado);

@@ -2,6 +2,7 @@ using FluentValidation;
 using GestionTurnos.Api.Application.Common.Security;
 using GestionTurnos.Api.Application.DTOs.Turnos;
 using GestionTurnos.Api.Application.Interfaces;
+using GestionTurnos.Api.Application.Services;
 using GestionTurnos.Api.Domain.Entities.Turnos;
 using GestionTurnos.Api.Domain.Enums;
 using GestionTurnos.Api.Domain.Interfaces;
@@ -293,16 +294,24 @@ public sealed class ResolverCambioTurnoCommandHandler : IRequestHandler<Resolver
     private readonly GestionTurnosContext _context;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IRevisionConflictosTurno _revisionConflictos;
 
     public ResolverCambioTurnoCommandHandler(
         GestionTurnosContext context,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IRevisionConflictosTurno revisionConflictos)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
+        _revisionConflictos = revisionConflictos;
     }
+
+    private static readonly Error SolicitudNoPendiente = new(
+        "Turnos.SolicitudCambioNoPendiente",
+        "La solicitud de cambio de turno no existe o ya fue resuelta.",
+        ErrorType.NotFound);
 
     public async Task<Result> Handle(ResolverCambioTurnoCommand request, CancellationToken cancellationToken)
     {
@@ -313,102 +322,162 @@ public sealed class ResolverCambioTurnoCommandHandler : IRequestHandler<Resolver
         {
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
-            var solicitud = await _context.SolicitudesCambioTurno
-                .Include(s => s.AsignacionSolicitante)
-                .Include(s => s.AsignacionCompanero)
-                .FirstOrDefaultAsync(
-                    s => s.IdSolicitudCambio == request.IdSolicitudCambio &&
-                         s.CodEstadoSolicitud == EstadosSolicitud.Pendiente,
-                    cancellationToken);
+            // Identificadores para bloquear en orden (sin rastrear todavía).
+            var datos = await _context.SolicitudesCambioTurno
+                .AsNoTracking()
+                .Where(s => s.IdSolicitudCambio == request.IdSolicitudCambio)
+                .Select(s => new
+                {
+                    s.IdAsignacionSolicitante,
+                    s.IdAsignacionCompanero,
+                    IdEmpleadoSolicitante = s.AsignacionSolicitante.IdEmpleado,
+                    IdEmpleadoCompanero = s.AsignacionCompanero.IdEmpleado
+                })
+                .FirstOrDefaultAsync(cancellationToken);
 
-            if (solicitud is null)
+            if (datos is null)
             {
                 await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-                return Result.Failure(new Error(
-                    "Turnos.SolicitudCambioNoPendiente",
-                    "La solicitud de cambio de turno no existe o ya fue resuelta.",
-                    ErrorType.NotFound));
+                return Result.Failure(SolicitudNoPendiente);
             }
 
+            // Orden de bloqueo igual al de la programación (empleados y después asignaciones):
+            // empleados → solicitud → asignaciones en orden ascendente. Evita interbloqueos y
+            // que otra programación o resolución simultánea pase las mismas validaciones.
             if (request.Aprobar)
             {
-                var asig1 = solicitud.AsignacionSolicitante;
-                var asig2 = solicitud.AsignacionCompanero;
-
-                if (asig1.CodEstadoAsignacion == EstadosAsignacion.Anulada ||
-                    asig2.CodEstadoAsignacion == EstadosAsignacion.Anulada)
-                {
-                    await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-                    return Result.Failure(new Error(
-                        "Turnos.AsignacionAnulada",
-                        "Una de las asignaciones del cambio ya fue anulada.",
-                        ErrorType.Conflict));
-                }
-
-                if (asig1.Periodo.Inicio <= ahora || asig2.Periodo.Inicio <= ahora)
-                {
-                    await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-                    return Result.Failure(new Error(
-                        "Turnos.AsignacionNoFutura",
-                        "No se puede aprobar un cambio de turno sobre asignaciones que ya iniciaron o pasaron.",
-                        ErrorType.Conflict));
-                }
-
-                // 1. Anular las dos asignaciones originales
-                var estadoOriginal1 = asig1.CodEstadoAsignacion;
-                var estadoOriginal2 = asig2.CodEstadoAsignacion;
-
-                asig1.CodEstadoAsignacion = EstadosAsignacion.Anulada;
-                asig2.CodEstadoAsignacion = EstadosAsignacion.Anulada;
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-                // 2. Crear las dos nuevas asignaciones con los empleados cruzados
-                var nuevaAsignacionParaSolicitante = new Asignacion
-                {
-                    IdEmpleado = asig1.IdEmpleado,
-                    IdTurno = asig2.IdTurno,
-                    Fecha = asig2.Fecha,
-                    Periodo = asig2.Periodo,
-                    CodEstadoAsignacion = estadoOriginal2,
-                    Observacion = $"Cambio de turno aprobado (#{solicitud.IdSolicitudCambio})",
-                    CreadoPor = adminId,
-                    CreadoEn = ahora
-                };
-
-                var nuevaAsignacionParaCompanero = new Asignacion
-                {
-                    IdEmpleado = asig2.IdEmpleado,
-                    IdTurno = asig1.IdTurno,
-                    Fecha = asig1.Fecha,
-                    Periodo = asig1.Periodo,
-                    CodEstadoAsignacion = estadoOriginal1,
-                    Observacion = $"Cambio de turno aprobado (#{solicitud.IdSolicitudCambio})",
-                    CreadoPor = adminId,
-                    CreadoEn = ahora
-                };
-
-                await _context.Asignaciones.AddRangeAsync(
-                    [nuevaAsignacionParaSolicitante, nuevaAsignacionParaCompanero],
-                    cancellationToken);
-
-                solicitud.CodEstadoSolicitud = EstadosSolicitud.Aprobada;
-                solicitud.ResueltoPor = adminId;
-                solicitud.ResueltoEn = ahora;
-                solicitud.MotivoRechazo = null;
+                await _revisionConflictos.BloquearEmpleadosAsync(
+                    [datos.IdEmpleadoSolicitante, datos.IdEmpleadoCompanero], cancellationToken);
             }
-            else
+
+            var solicitud = await _context.BloquearPorIdAsync<SolicitudCambioTurno>(
+                request.IdSolicitudCambio, cancellationToken);
+
+            if (solicitud is null || solicitud.CodEstadoSolicitud != EstadosSolicitud.Pendiente)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure(SolicitudNoPendiente);
+            }
+
+            if (!request.Aprobar)
             {
                 solicitud.CodEstadoSolicitud = EstadosSolicitud.Rechazada;
                 solicitud.ResueltoPor = adminId;
                 solicitud.ResueltoEn = ahora;
                 solicitud.MotivoRechazo = request.MotivoRechazo!.Trim();
+
+                await _unitOfWork.CommitTransactionAsync(cancellationToken);
+                return Result.Success();
             }
+
+            Asignacion? asig1 = null;
+            Asignacion? asig2 = null;
+            foreach (var idAsignacion in new[] { solicitud.IdAsignacionSolicitante, solicitud.IdAsignacionCompanero }.Order())
+            {
+                var bloqueada = await _context.BloquearPorIdAsync<Asignacion>(idAsignacion, cancellationToken);
+                if (idAsignacion == solicitud.IdAsignacionSolicitante)
+                {
+                    asig1 = bloqueada;
+                }
+                else
+                {
+                    asig2 = bloqueada;
+                }
+            }
+
+            if (asig1 is null || asig2 is null)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure(AsignacionesTurno.NoEncontrada);
+            }
+
+            // Ninguna de las dos puede estar anulada ni tener asistencia registrada.
+            foreach (var asignacion in new[] { asig1, asig2 })
+            {
+                var editable = await AsignacionesTurno.ValidarEditableAsync(
+                    _context, asignacion, "intercambiar", cancellationToken);
+                if (editable.IsFailure)
+                {
+                    await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                    return editable;
+                }
+            }
+
+            if (asig1.Periodo.Inicio <= ahora || asig2.Periodo.Inicio <= ahora)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure(new Error(
+                    "Turnos.AsignacionNoFutura",
+                    "No se puede aprobar un cambio de turno sobre asignaciones que ya iniciaron o pasaron.",
+                    ErrorType.Conflict));
+            }
+
+            // 1. Anular las dos asignaciones originales (no se cambia id_empleado con un UPDATE).
+            var estadoOriginal1 = asig1.CodEstadoAsignacion;
+            var estadoOriginal2 = asig2.CodEstadoAsignacion;
+            var motivo = $"Cambio de turno aprobado (#{solicitud.IdSolicitudCambio})";
+
+            asig1.CodEstadoAsignacion = EstadosAsignacion.Anulada;
+            asig1.Observacion = $"Anulada por cambio de turno aprobado (#{solicitud.IdSolicitudCambio})";
+            asig2.CodEstadoAsignacion = EstadosAsignacion.Anulada;
+            asig2.Observacion = asig1.Observacion;
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            // 2. Crear las dos nuevas con los empleados cruzados, cada una con las mismas
+            //    validaciones de la programación (cruces, vacaciones, novedades, descansos y parámetros).
+            //    Se conserva el periodo publicado de cada turno.
+            var cruces = new[]
+            {
+                (IdEmpleado: asig1.IdEmpleado, Origen: asig2, Estado: estadoOriginal2),
+                (IdEmpleado: asig2.IdEmpleado, Origen: asig1, Estado: estadoOriginal1)
+            };
+
+            foreach (var (idEmpleado, origen, estado) in cruces)
+            {
+                var revision = await _revisionConflictos.RevisarAsync(
+                    idEmpleado, origen.IdTurno, origen.Fecha, idAsignacionActual: null, cancellationToken);
+
+                Error? error = revision.IsFailure
+                    ? revision.Error
+                    : revision.Value.PuedeAsignarse ? null : RevisionConflictosTurno.ErrorDeConflictos(revision.Value);
+
+                if (error is not null)
+                {
+                    await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                    return Result.Failure(new Error(
+                        error.Code,
+                        $"El cambio de turno no se puede aprobar para el empleado #{idEmpleado} el {origen.Fecha:yyyy-MM-dd}: {error.Message} No se aplicó ningún cambio.",
+                        error.Type));
+                }
+
+                await _context.Asignaciones.AddAsync(new Asignacion
+                {
+                    IdEmpleado = idEmpleado,
+                    IdTurno = origen.IdTurno,
+                    Fecha = origen.Fecha,
+                    Periodo = origen.Periodo,
+                    CodEstadoAsignacion = estado,
+                    Observacion = motivo,
+                    CreadoPor = adminId,
+                    CreadoEn = ahora
+                }, cancellationToken);
+
+                // Se guarda antes de revisar la siguiente; la base (23P01 / 23514) también valida el cruce.
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+
+            // 3. Cerrar la solicitud.
+            solicitud.CodEstadoSolicitud = EstadosSolicitud.Aprobada;
+            solicitud.ResueltoPor = adminId;
+            solicitud.ResueltoEn = ahora;
+            solicitud.MotivoRechazo = null;
 
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
             return Result.Success();
         }
         catch (Exception ex)
         {
+            // Cualquier fallo (incluido un cruce detectado por la base) revierte las anulaciones y las altas.
             await _unitOfWork.RollbackTransactionAsync(cancellationToken);
             return Result.Failure(DatabaseErrorTranslator.Translate(ex));
         }
