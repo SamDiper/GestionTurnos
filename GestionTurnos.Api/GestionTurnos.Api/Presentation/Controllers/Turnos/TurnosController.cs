@@ -1,5 +1,6 @@
 using Asp.Versioning;
 using GestionTurnos.Api.Application.CQRS.Turnos;
+using GestionTurnos.Api.Domain.Enums;
 using GestionTurnos.Api.Presentation.Contracts.Requests.Turnos;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -241,6 +242,21 @@ public sealed class TurnosController : BaseApiController
         CancellationToken cancellationToken = default)
     {
         var query = new ListarCambiosTurnoAdminQuery(estado, idEmpleado, pageNumber, pageSize);
+        var result = await Sender.Send(query, cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Bandeja de solicitudes de cambio de turno pendientes de resolver (Sección 16 - permiso: turnos.programar).
+    /// </summary>
+    [HttpGet("cambios/pendientes")]
+    public async Task<IActionResult> ListarCambiosTurnoPendientes(
+        [FromQuery] long? idEmpleado,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var query = new ListarCambiosTurnoAdminQuery(EstadosSolicitud.Pendiente, idEmpleado, pageNumber, pageSize);
         var result = await Sender.Send(query, cancellationToken);
         return HandleResult(result);
     }

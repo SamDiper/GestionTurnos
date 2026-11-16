@@ -1,3 +1,5 @@
+using System.Linq.Expressions;
+using FluentValidation;
 using GestionTurnos.Api.Application.Common.Security;
 using GestionTurnos.Api.Application.DTOs.Auditoria;
 using GestionTurnos.Api.Domain.Entities.Auditoria;
@@ -25,6 +27,20 @@ public sealed record ConsultarBitacoraQuery(
     DateTimeOffset? FechaHasta = null,
     int PageNumber = 1,
     int PageSize = 25) : IRequest<Result<PagedResult<BitacoraNegocioDto>>>;
+
+public sealed class ConsultarBitacoraQueryValidator : AbstractValidator<ConsultarBitacoraQuery>
+{
+    public ConsultarBitacoraQueryValidator()
+    {
+        RuleFor(x => x.FechaHasta)
+            .GreaterThanOrEqualTo(x => x.FechaDesde!.Value)
+            .When(x => x.FechaDesde.HasValue && x.FechaHasta.HasValue)
+            .WithMessage("La fecha final debe ser mayor o igual a la fecha inicial.");
+        RuleFor(x => x.CodTipoAccion).MaximumLength(20);
+        RuleFor(x => x.Esquema).MaximumLength(63);
+        RuleFor(x => x.Tabla).MaximumLength(63);
+    }
+}
 
 public sealed class ConsultarBitacoraQueryHandler
     : IRequestHandler<ConsultarBitacoraQuery, Result<PagedResult<BitacoraNegocioDto>>>
@@ -61,13 +77,13 @@ public sealed class ConsultarBitacoraQueryHandler
         if (!string.IsNullOrWhiteSpace(request.Esquema))
         {
             var esquema = request.Esquema.Trim().ToLowerInvariant();
-            query = query.Where(b => b.Esquema.ToLower() == esquema);
+            query = query.Where(b => b.Esquema == esquema);
         }
 
         if (!string.IsNullOrWhiteSpace(request.Tabla))
         {
             var tabla = request.Tabla.Trim().ToLowerInvariant();
-            query = query.Where(b => b.Tabla.ToLower() == tabla);
+            query = query.Where(b => b.Tabla == tabla);
         }
 
         if (request.FechaDesde.HasValue)
@@ -84,24 +100,93 @@ public sealed class ConsultarBitacoraQueryHandler
 
         var items = await query
             .OrderByDescending(b => b.FechaHora)
+            .ThenByDescending(b => b.IdBitacora)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
-            .Select(b => new BitacoraNegocioDto(
-                b.IdBitacora,
-                b.FechaHora,
-                b.IdUsuario,
-                b.Usuario != null ? b.Usuario.Correo : null,
-                b.CodTipoAccion,
-                b.TipoAccion.Nombre,
-                b.Esquema,
-                b.Tabla,
-                b.IdRegistro,
-                b.IdEmpleado,
-                b.Empleado != null ? b.Empleado.Nombres + " " + b.Empleado.Apellidos : null,
-                b.ValorAnterior,
-                b.ValorNuevo,
-                b.Descripcion,
-                b.IpOrigen))
+            .Select(BitacoraProyeccion.ADto)
+            .ToListAsync(cancellationToken);
+
+        return Result.Success(new PagedResult<BitacoraNegocioDto>(items, totalCount, pageNumber, pageSize));
+    }
+}
+
+/// <summary>
+/// Proyección única de la bitácora a DTO (incluye el correo del usuario que hizo el cambio).
+/// </summary>
+internal static class BitacoraProyeccion
+{
+    public static readonly Expression<Func<BitacoraNegocio, BitacoraNegocioDto>> ADto = b => new BitacoraNegocioDto(
+        b.IdBitacora,
+        b.FechaHora,
+        b.IdUsuario,
+        b.Usuario != null ? b.Usuario.Correo : null,
+        b.CodTipoAccion,
+        b.TipoAccion.Nombre,
+        b.Esquema,
+        b.Tabla,
+        b.IdRegistro,
+        b.IdEmpleado,
+        b.Empleado != null ? b.Empleado.Nombres + " " + b.Empleado.Apellidos : null,
+        b.ValorAnterior,
+        b.ValorNuevo,
+        b.Descripcion,
+        b.IpOrigen);
+}
+
+// =====================================================================
+// 15. HISTORIAL DE UN REGISTRO (permiso: auditoria.consultar)
+// Todos los cambios de un registro concreto por esquema, tabla e identificador,
+// del más reciente al más antiguo. Usa el índice ix_bitacora_registro.
+// =====================================================================
+
+[RequirePermission(PermisosSistema.AuditoriaConsultar)]
+public sealed record ObtenerHistorialRegistroQuery(
+    string Esquema,
+    string Tabla,
+    string IdRegistro,
+    int PageNumber = 1,
+    int PageSize = 25) : IRequest<Result<PagedResult<BitacoraNegocioDto>>>;
+
+public sealed class ObtenerHistorialRegistroQueryValidator : AbstractValidator<ObtenerHistorialRegistroQuery>
+{
+    public ObtenerHistorialRegistroQueryValidator()
+    {
+        RuleFor(x => x.Esquema).NotEmpty().MaximumLength(63);
+        RuleFor(x => x.Tabla).NotEmpty().MaximumLength(63);
+        RuleFor(x => x.IdRegistro).NotEmpty().MaximumLength(60);
+    }
+}
+
+public sealed class ObtenerHistorialRegistroQueryHandler
+    : IRequestHandler<ObtenerHistorialRegistroQuery, Result<PagedResult<BitacoraNegocioDto>>>
+{
+    private readonly GestionTurnosContext _context;
+
+    public ObtenerHistorialRegistroQueryHandler(GestionTurnosContext context) => _context = context;
+
+    public async Task<Result<PagedResult<BitacoraNegocioDto>>> Handle(
+        ObtenerHistorialRegistroQuery request,
+        CancellationToken cancellationToken)
+    {
+        int pageNumber = Math.Max(request.PageNumber, 1);
+        int pageSize = Math.Clamp(request.PageSize, 1, 50);
+
+        var esquema = request.Esquema.Trim().ToLowerInvariant();
+        var tabla = request.Tabla.Trim().ToLowerInvariant();
+        var idRegistro = request.IdRegistro.Trim();
+
+        var query = _context.BitacoraNegocio
+            .AsNoTracking()
+            .Where(b => b.Esquema == esquema && b.Tabla == tabla && b.IdRegistro == idRegistro);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(b => b.FechaHora)
+            .ThenByDescending(b => b.IdBitacora)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(BitacoraProyeccion.ADto)
             .ToListAsync(cancellationToken);
 
         return Result.Success(new PagedResult<BitacoraNegocioDto>(items, totalCount, pageNumber, pageSize));
