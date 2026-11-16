@@ -119,9 +119,25 @@ public sealed class GuardarRolCommandHandler : IRequestHandler<GuardarRolCommand
         {
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
+            // Mensaje claro antes de llegar a la restricción única de seguridad.rol (nombre).
+            var nombreNormalizado = request.Nombre.Trim().ToLower();
+            int idRolActual = request.IdRol ?? 0;
+            bool nombreDuplicado = await _context.Roles
+                .AsNoTracking()
+                .AnyAsync(r => r.IdRol != idRolActual && r.Nombre.ToLower() == nombreNormalizado, cancellationToken);
+
+            if (nombreDuplicado)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure<int>(AuthErrors.RolNombreDuplicado);
+            }
+
             Rol rol;
             if (request.IdRol.HasValue && request.IdRol.Value > 0)
             {
+                // Bloqueo de la regla "último administrador" antes de la fila del rol (orden de bloqueo único).
+                await ReglasAdministracionUsuarios.BloquearReglaAdministradoresAsync(_context, cancellationToken);
+
                 var existente = await _context.BloquearPorIdAsync<Rol>(request.IdRol.Value, cancellationToken);
 
                 if (existente is null)
@@ -247,6 +263,9 @@ public sealed class DesactivarRolCommandHandler : IRequestHandler<DesactivarRolC
         try
         {
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            // Bloqueo de la regla "último administrador" antes de la fila del rol (orden de bloqueo único).
+            await ReglasAdministracionUsuarios.BloquearReglaAdministradoresAsync(_context, cancellationToken);
 
             var rol = await _context.BloquearPorIdAsync<Rol>(request.IdRol, cancellationToken);
             if (rol is null)
@@ -381,6 +400,9 @@ public sealed class QuitarPermisoRolCommandHandler : IRequestHandler<QuitarPermi
         try
         {
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            // Bloqueo de la regla "último administrador" antes de la fila del rol (orden de bloqueo único).
+            await ReglasAdministracionUsuarios.BloquearReglaAdministradoresAsync(_context, cancellationToken);
 
             var rol = await _context.BloquearPorIdAsync<Rol>(request.IdRol, cancellationToken);
             if (rol is null)

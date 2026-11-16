@@ -105,11 +105,19 @@ public abstract class BaseApiController : ControllerBase
                     "Conflicto",
                     error.Message),
 
+            // Con cuerpo ProblemDetails: Unauthorized()/Forbid() responden vacío y el cliente perdía
+            // mensajes como "Tu registro está pendiente de aprobación" o el motivo de rechazo.
             ErrorType.Unauthorized =>
-                Unauthorized(),
+                CreateProblem(
+                    StatusCodes.Status401Unauthorized,
+                    "No autorizado",
+                    error.Message),
 
             ErrorType.Forbidden =>
-                Forbid(),
+                CreateProblem(
+                    StatusCodes.Status403Forbidden,
+                    "Acceso denegado",
+                    error.Message),
 
             _ =>
                 CreateProblem(

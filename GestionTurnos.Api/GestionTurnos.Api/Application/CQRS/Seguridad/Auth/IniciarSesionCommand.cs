@@ -93,7 +93,13 @@ public sealed class IniciarSesionCommandHandler : IRequestHandler<IniciarSesionC
             return Result.Failure<LoginResponseDto>(AuthErrors.CredencialesInvalidas);
         }
 
-        // 3. Exige cod_estado_usuario = 'ACTIVO' y compara la contraseña con bcrypt
+        // 3. Compara la contraseña con bcrypt y exige cod_estado_usuario = 'ACTIVO'.
+        //    La contraseña se verifica primero: el estado de la cuenta solo se revela a quien la conoce.
+        if (!_passwordHasher.Verify(request.Contrasena, usuario.HashContrasena))
+        {
+            return Result.Failure<LoginResponseDto>(AuthErrors.CredencialesInvalidas);
+        }
+
         if (usuario.CodEstadoUsuario != EstadosUsuario.Activo)
         {
             return Result.Failure<LoginResponseDto>(AuthErrors.UsuarioNoActivo(usuario.CodEstadoUsuario));
@@ -102,11 +108,6 @@ public sealed class IniciarSesionCommandHandler : IRequestHandler<IniciarSesionC
         if (!usuario.Rol.Activo)
         {
             return Result.Failure<LoginResponseDto>(AuthErrors.Forbidden);
-        }
-
-        if (!_passwordHasher.Verify(request.Contrasena, usuario.HashContrasena))
-        {
-            return Result.Failure<LoginResponseDto>(AuthErrors.CredencialesInvalidas);
         }
 
         // 4. Carga rol, permisos (seguridad.rol_permiso -> seguridad.permiso.codigo) y el id_empleado activo (Sección 2)

@@ -112,7 +112,7 @@ public sealed class SolicitarRegistroCommandHandler : IRequestHandler<SolicitarR
 
         bool documentoExiste = await _context.Empleados
             .AsNoTracking()
-            .AnyAsync(e => e.NumeroDocumento == numDoc, cancellationToken);
+            .AnyAsync(e => e.CodTipoDocumento == codTipoDoc && e.NumeroDocumento == numDoc, cancellationToken);
 
         if (documentoExiste)
         {

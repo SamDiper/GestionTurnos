@@ -1,6 +1,8 @@
 using GestionTurnos.Api.Domain.Enums;
 using GestionTurnos.Api.Domain.Errors.Seguridad;
 using GestionTurnos.Api.Domain.Shared;
+using GestionTurnos.Api.Domain.Entities.Seguridad;
+using GestionTurnos.Api.Infrastructure.Persistence;
 using GestionTurnos.Api.Infrastructure.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +14,30 @@ namespace GestionTurnos.Api.Application.Rules.Seguridad;
 /// </summary>
 public static class ReglasAdministracionUsuarios
 {
+    /// <summary>
+    /// Serializa las operaciones que pueden reducir el número de administradores activos
+    /// (cambio de estado o rol de un usuario, desactivar un rol, quitarle <c>usuarios.gestionar</c>).
+    /// Bloquea la fila del permiso <c>usuarios.gestionar</c> hasta el fin de la transacción; sin esto,
+    /// dos administradores que se desactivan entre sí al mismo tiempo pasarían ambos el conteo y el
+    /// sistema quedaría sin administradores. Debe llamarse justo después de abrir la transacción,
+    /// antes de bloquear cualquier otra fila, para mantener un orden de bloqueo único.
+    /// </summary>
+    public static async Task BloquearReglaAdministradoresAsync(
+        GestionTurnosContext context,
+        CancellationToken cancellationToken)
+    {
+        var idPermiso = await context.Permisos
+            .AsNoTracking()
+            .Where(p => p.Codigo == PermisosSistema.UsuariosGestionar)
+            .Select(p => (int?)p.IdPermiso)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (idPermiso.HasValue)
+        {
+            await context.BloquearPorIdAsync<Permiso>(idPermiso.Value, cancellationToken);
+        }
+    }
+
     /// <summary>
     /// Indica si el rol (activo) otorga el permiso <c>usuarios.gestionar</c>.
     /// </summary>

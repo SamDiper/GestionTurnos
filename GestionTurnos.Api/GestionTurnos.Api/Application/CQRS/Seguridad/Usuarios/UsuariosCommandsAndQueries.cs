@@ -242,7 +242,7 @@ public sealed class ActualizarUsuarioCommandValidator : AbstractValidator<Actual
 
         RuleFor(x => x.CodEstadoUsuario)
             .NotEmpty()
-            .Must(e => e is EstadosUsuario.Activo or EstadosUsuario.Inactivo or EstadosUsuario.Bloqueado)
+            .Must(e => e?.Trim().ToUpperInvariant() is EstadosUsuario.Activo or EstadosUsuario.Inactivo or EstadosUsuario.Bloqueado)
             .WithMessage("El estado del usuario debe ser ACTIVO, INACTIVO o BLOQUEADO.");
     }
 }
@@ -420,6 +420,9 @@ internal static class CambioUsuario
         try
         {
             await unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            // Primero el bloqueo global de la regla "último administrador", luego la fila del usuario.
+            await ReglasAdministracionUsuarios.BloquearReglaAdministradoresAsync(context, cancellationToken);
 
             var usuario = await context.BloquearPorIdAsync<Usuario>(idUsuario, cancellationToken);
             if (usuario is null)
