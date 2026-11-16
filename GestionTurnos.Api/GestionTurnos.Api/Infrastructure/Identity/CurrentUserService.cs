@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using GestionTurnos.Api.Application.Common.Security;
 using GestionTurnos.Api.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
 
@@ -7,7 +6,7 @@ namespace GestionTurnos.Api.Infrastructure.Identity;
 
 /// <summary>
 /// Implementación de <see cref="ICurrentUserService"/> para extraer información
-/// del usuario desde el HttpContext actual y sus claims de JWT en el ecosistema de Sobretasa.
+/// del usuario desde el HttpContext actual y sus claims de JWT.
 /// </summary>
 public class CurrentUserService : ICurrentUserService
 {
@@ -18,12 +17,13 @@ public class CurrentUserService : ICurrentUserService
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public int? UserId
+    public long? UserId
     {
         get
         {
-            var claim = _httpContextAccessor.HttpContext?.User?.FindFirstValue("usuario_id");
-            if (int.TryParse(claim, out int parsedId))
+            var user = _httpContextAccessor.HttpContext?.User;
+            var claim = user?.FindFirstValue("usuario_id") ?? user?.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (long.TryParse(claim, out long parsedId))
             {
                 return parsedId;
             }
@@ -32,66 +32,16 @@ public class CurrentUserService : ICurrentUserService
     }
 
     public string? Email =>
-        _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.Email);
+        _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.Email)
+        ?? _httpContextAccessor.HttpContext?.User?.FindFirstValue("email");
 
     public string? Nombre =>
-        _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.Name);
-
-    public int? DepartamentoId
-    {
-        get
-        {
-            var claim = _httpContextAccessor.HttpContext?.User?.FindFirstValue("departamento_id");
-            if (int.TryParse(claim, out int parsedId))
-            {
-                return parsedId;
-            }
-            return null;
-        }
-    }
-
-    public int? MunicipioId
-    {
-        get
-        {
-            var claim = _httpContextAccessor.HttpContext?.User?.FindFirstValue("municipio_id");
-            if (int.TryParse(claim, out int parsedId))
-            {
-                return parsedId;
-            }
-            return null;
-        }
-    }
-
-    public int? ContribuyenteId
-    {
-        get
-        {
-            var claim = _httpContextAccessor.HttpContext?.User?.FindFirstValue("contribuyente_id");
-            if (int.TryParse(claim, out int parsedId))
-            {
-                return parsedId;
-            }
-            return null;
-        }
-    }
-
-    public string? TipoEntidadCodigo =>
-        _httpContextAccessor.HttpContext?.User?.FindFirstValue("TipoEntidad");
+        _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.Name)
+        ?? _httpContextAccessor.HttpContext?.User?.FindFirstValue("nombre");
 
     public string? RolCodigo =>
-        _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.Role);
-
-    public bool EsGobernacion => 
-        TipoEntidadCodigo == TiposEntidadSeguridad.GOBERNACION || (!ContribuyenteId.HasValue && !MunicipioId.HasValue);
-
-    public bool EsContribuyente => 
-        TipoEntidadCodigo == TiposEntidadSeguridad.CONTRIBUYENTE || ContribuyenteId.HasValue;
-
-    public bool EsMunicipio => 
-        TipoEntidadCodigo == TiposEntidadSeguridad.MUNICIPIO || MunicipioId.HasValue;
-
-    public bool EsExterno => EsContribuyente || EsMunicipio;
+        _httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.Role)
+        ?? _httpContextAccessor.HttpContext?.User?.FindFirstValue("role");
 
     public string? IpAddress
     {

@@ -9,9 +9,9 @@ using Microsoft.AspNetCore.Authorization;
 namespace GestionTurnos.Api.Application.Behaviors;
 
 /// <summary>
-/// Pipeline Behavior de MediatR que intercepta peticiones decoradas con <see cref="AuthorizeAttribute"/>
-/// o marcadas con <see cref="IRequireAuthentication"/> para verificar autenticación y políticas
-/// antes de que la petición llegue a su Handler.
+/// Pipeline Behavior de MediatR que intercepta peticiones decoradas con <see cref="AuthorizeAttribute"/>,
+/// <see cref="IRequireAuthentication"/> o <see cref="RequirePermissionAttribute"/> para verificar
+/// autenticación y permisos granulares (Sección 2 - RF-01, RG-08) antes de ejecutar el Handler.
 /// </summary>
 public sealed class AuthorizationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
@@ -54,31 +54,13 @@ public sealed class AuthorizationBehavior<TRequest, TResponse> : IPipelineBehavi
             return CreateFailureResult<TResponse>(AuthErrors.Unauthorized);
         }
 
-        // 2. Verificación de Políticas declaradas en [Authorize(Policy = "...")] (403 Forbidden)
+        // 2. Verificación de Permisos granulares declarados en [Authorize(Policy = "...")]
         foreach (var attribute in attributes)
         {
-            if (!string.IsNullOrEmpty(attribute.Policy))
+            if (!string.IsNullOrEmpty(attribute.Policy) &&
+                !string.Equals(attribute.Policy, PoliticasSeguridad.Autenticado, StringComparison.OrdinalIgnoreCase))
             {
-                if (string.Equals(attribute.Policy, PoliticasSeguridad.Gobernacion, StringComparison.OrdinalIgnoreCase) &&
-                    !_currentUserService.EsGobernacion)
-                {
-                    return CreateFailureResult<TResponse>(AuthErrors.Forbidden);
-                }
-
-                if (string.Equals(attribute.Policy, PoliticasSeguridad.Contribuyente, StringComparison.OrdinalIgnoreCase) &&
-                    !_currentUserService.EsContribuyente)
-                {
-                    return CreateFailureResult<TResponse>(AuthErrors.Forbidden);
-                }
-
-                if (string.Equals(attribute.Policy, PoliticasSeguridad.Municipio, StringComparison.OrdinalIgnoreCase) &&
-                    !_currentUserService.EsMunicipio)
-                {
-                    return CreateFailureResult<TResponse>(AuthErrors.Forbidden);
-                }
-
-                if (string.Equals(attribute.Policy, PoliticasSeguridad.Externo, StringComparison.OrdinalIgnoreCase) &&
-                    !_currentUserService.EsExterno)
+                if (!_currentUserService.TienePermiso(attribute.Policy))
                 {
                     return CreateFailureResult<TResponse>(AuthErrors.Forbidden);
                 }
@@ -116,4 +98,3 @@ public sealed class AuthorizationBehavior<TRequest, TResponse> : IPipelineBehavi
         return (TResponse)response!;
     }
 }
-
