@@ -38,6 +38,9 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<ILiquidacionHorasCalculator, Calculators.LiquidacionHorasCalculator>();
         services.AddScoped<IDiasVacacionesCalculator, Calculators.DiasVacacionesCalculator>();
 
+        // Revisión de conflictos de turnos (sección 9.1): consulta previa, asignación y modificación
+        services.AddScoped<Services.IRevisionConflictosTurno, Services.RevisionConflictosTurno>();
+
         return services;
     }
 }
