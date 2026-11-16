@@ -573,3 +573,75 @@ public sealed class ResolverSolicitudVacacionesCommandHandler
     }
 }
 
+[RequirePermission(PermisosSistema.VacacionesAprobar)]
+public sealed record ListarPeriodosVacacionalesAdminQuery(long? IdEmpleado = null)
+    : IRequest<Result<IReadOnlyList<PeriodoVacacionalDto>>>;
+
+public sealed class ListarPeriodosVacacionalesAdminQueryHandler
+    : IRequestHandler<ListarPeriodosVacacionalesAdminQuery, Result<IReadOnlyList<PeriodoVacacionalDto>>>
+{
+    private readonly GestionTurnosContext _context;
+
+    public ListarPeriodosVacacionalesAdminQueryHandler(GestionTurnosContext context) => _context = context;
+
+    public async Task<Result<IReadOnlyList<PeriodoVacacionalDto>>> Handle(
+        ListarPeriodosVacacionalesAdminQuery request,
+        CancellationToken cancellationToken)
+    {
+        var query = _context.PeriodosVacacionales.AsNoTracking();
+        if (request.IdEmpleado.HasValue)
+        {
+            query = query.Where(p => p.IdEmpleado == request.IdEmpleado.Value);
+        }
+
+        var items = await query
+            .OrderByDescending(p => p.FechaInicio)
+            .Select(p => new PeriodoVacacionalDto(
+                p.IdPeriodoVacacional,
+                p.IdEmpleado,
+                p.Empleado.Nombres + " " + p.Empleado.Apellidos,
+                p.FechaInicio,
+                p.FechaFin,
+                p.DiasOtorgados))
+            .ToListAsync(cancellationToken);
+
+        return Result.Success<IReadOnlyList<PeriodoVacacionalDto>>(items);
+    }
+}
+
+[RequirePermission(PermisosSistema.VacacionesAprobar)]
+public sealed record ListarSaldosVacacionesAdminQuery(long? IdEmpleado = null)
+    : IRequest<Result<IReadOnlyList<SaldoVacacionesDto>>>;
+
+public sealed class ListarSaldosVacacionesAdminQueryHandler
+    : IRequestHandler<ListarSaldosVacacionesAdminQuery, Result<IReadOnlyList<SaldoVacacionesDto>>>
+{
+    private readonly GestionTurnosContext _context;
+
+    public ListarSaldosVacacionesAdminQueryHandler(GestionTurnosContext context) => _context = context;
+
+    public async Task<Result<IReadOnlyList<SaldoVacacionesDto>>> Handle(
+        ListarSaldosVacacionesAdminQuery request,
+        CancellationToken cancellationToken)
+    {
+        var query = _context.VistaSaldosVacaciones.AsNoTracking();
+        if (request.IdEmpleado.HasValue)
+        {
+            query = query.Where(v => v.IdEmpleado == request.IdEmpleado.Value);
+        }
+
+        var items = await query
+            .OrderBy(v => v.IdEmpleado)
+            .Select(v => new SaldoVacacionesDto(
+                v.IdEmpleado,
+                v.DiasOtorgados,
+                v.DiasUtilizados,
+                v.DiasEnSolicitud,
+                v.DiasDisponibles,
+                v.DiasDisponibles - v.DiasEnSolicitud))
+            .ToListAsync(cancellationToken);
+
+        return Result.Success<IReadOnlyList<SaldoVacacionesDto>>(items);
+    }
+}
+

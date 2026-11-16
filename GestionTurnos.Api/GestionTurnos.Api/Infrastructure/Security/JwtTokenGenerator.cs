@@ -26,7 +26,7 @@ public sealed class JwtTokenGenerator : IJwtTokenGenerator
     {
         var jwtSettings = _configuration.GetSection("Jwt");
         var secretKey = jwtSettings["Key"] ?? "ClaveSeguraTemporalParaTokensJwt2026!GestionTurnos";
-        var issuer = jwtSettings["Issuer"] ?? "GobernacionCaquetaApi";
+        var issuer = jwtSettings["Issuer"] ?? "GestionTurnosApi";
         var audience = jwtSettings["Audience"] ?? "AngularApp";
         int expirationMinutes = int.TryParse(jwtSettings["AccessTokenExpirationMinutes"], out int parsedMin)
             ? parsedMin

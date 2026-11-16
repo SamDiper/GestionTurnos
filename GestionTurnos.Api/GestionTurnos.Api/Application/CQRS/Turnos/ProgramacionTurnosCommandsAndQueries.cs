@@ -640,6 +640,54 @@ public sealed class ProgramarDiaDescansoCommandHandler : IRequestHandler<Program
     }
 }
 
+[RequirePermission(PermisosSistema.TurnosProgramar)]
+public sealed record ListarDiasDescansoQuery(
+    DateOnly FechaDesde,
+    DateOnly FechaHasta,
+    long? IdEmpleado = null,
+    int? IdArea = null) : IRequest<Result<IReadOnlyList<DiaDescansoDto>>>;
+
+public sealed class ListarDiasDescansoQueryHandler
+    : IRequestHandler<ListarDiasDescansoQuery, Result<IReadOnlyList<DiaDescansoDto>>>
+{
+    private readonly GestionTurnosContext _context;
+
+    public ListarDiasDescansoQueryHandler(GestionTurnosContext context) => _context = context;
+
+    public async Task<Result<IReadOnlyList<DiaDescansoDto>>> Handle(
+        ListarDiasDescansoQuery request,
+        CancellationToken cancellationToken)
+    {
+        var query = _context.DiasDescanso
+            .AsNoTracking()
+            .Where(d => d.Fecha >= request.FechaDesde && d.Fecha <= request.FechaHasta);
+
+        if (request.IdEmpleado.HasValue)
+        {
+            query = query.Where(d => d.IdEmpleado == request.IdEmpleado.Value);
+        }
+
+        if (request.IdArea.HasValue)
+        {
+            query = query.Where(d => d.Empleado.IdArea == request.IdArea.Value);
+        }
+
+        var items = await query
+            .OrderBy(d => d.Fecha)
+            .ThenBy(d => d.Empleado.Apellidos)
+            .Select(d => new DiaDescansoDto(
+                d.IdDiaDescanso,
+                d.IdEmpleado,
+                d.Empleado.Nombres + " " + d.Empleado.Apellidos,
+                d.Fecha,
+                d.CreadoPor,
+                d.CreadoEn))
+            .ToListAsync(cancellationToken);
+
+        return Result.Success<IReadOnlyList<DiaDescansoDto>>(items);
+    }
+}
+
 // =====================================================================
 // LISTAR ASIGNACIONES DE TURNO (ADMINISTRADOR)
 // =====================================================================

@@ -103,5 +103,17 @@ public sealed class EmpleadosController : BaseApiController
         var result = await Sender.Send(command, cancellationToken);
         return HandleResult(result);
     }
+
+    /// <summary>
+    /// Reactiva un empleado y su cuenta de usuario en la misma transacción (permiso: empleados.gestionar).
+    /// </summary>
+    [HttpPost("{idEmpleado:long}/reactivar")]
+    public async Task<IActionResult> Reactivar(
+        long idEmpleado,
+        CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(new ReactivarEmpleadoCommand(idEmpleado), cancellationToken);
+        return HandleResult(result);
+    }
 }
 

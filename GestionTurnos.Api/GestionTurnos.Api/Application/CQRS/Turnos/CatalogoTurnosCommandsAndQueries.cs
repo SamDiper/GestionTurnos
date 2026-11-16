@@ -56,7 +56,7 @@ public sealed class ListarTurnosQueryHandler
     }
 }
 
-[RequirePermission(PermisosSistema.TurnosGestionar)]
+[RequirePermission(PermisosSistema.TurnosConfigurar)]
 public sealed record GuardarTurnoCommand(
     int? IdTurno,
     string Nombre,

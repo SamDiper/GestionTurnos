@@ -556,3 +556,81 @@ public sealed class ObtenerMisHorasPorCategoriaQueryHandler
     }
 }
 
+// =====================================================================
+// 5. CONSULTA ADMINISTRATIVA DE ASISTENCIA (permiso: asistencia.consultar)
+// =====================================================================
+
+[RequirePermission(PermisosSistema.AsistenciaConsultar)]
+public sealed record ListarRegistrosAsistenciaAdminQuery(
+    DateTimeOffset Desde,
+    DateTimeOffset Hasta,
+    long? IdEmpleado = null,
+    int? IdArea = null,
+    string? CodFuenteMarcacion = null,
+    bool? SoloAbiertos = null,
+    int PageNumber = 1,
+    int PageSize = 50) : IRequest<Result<PagedResult<RegistroAsistenciaDto>>>;
+
+public sealed class ListarRegistrosAsistenciaAdminQueryHandler
+    : IRequestHandler<ListarRegistrosAsistenciaAdminQuery, Result<PagedResult<RegistroAsistenciaDto>>>
+{
+    private readonly GestionTurnosContext _context;
+
+    public ListarRegistrosAsistenciaAdminQueryHandler(GestionTurnosContext context) => _context = context;
+
+    public async Task<Result<PagedResult<RegistroAsistenciaDto>>> Handle(
+        ListarRegistrosAsistenciaAdminQuery request,
+        CancellationToken cancellationToken)
+    {
+        int pageNumber = Math.Max(request.PageNumber, 1);
+        int pageSize = Math.Clamp(request.PageSize, 1, 50);
+
+        var query = _context.RegistrosAsistencia
+            .AsNoTracking()
+            .Where(r => r.HoraEntrada >= request.Desde && r.HoraEntrada <= request.Hasta);
+
+        if (request.IdEmpleado.HasValue)
+        {
+            query = query.Where(r => r.IdEmpleado == request.IdEmpleado.Value);
+        }
+
+        if (request.IdArea.HasValue)
+        {
+            query = query.Where(r => r.Empleado.IdArea == request.IdArea.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.CodFuenteMarcacion))
+        {
+            var fuente = request.CodFuenteMarcacion.Trim().ToUpperInvariant();
+            query = query.Where(r => r.CodFuenteMarcacion == fuente);
+        }
+
+        if (request.SoloAbiertos == true)
+        {
+            query = query.Where(r => r.HoraSalida == null);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(r => r.HoraEntrada)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(r => new RegistroAsistenciaDto(
+                r.IdRegistro,
+                r.IdEmpleado,
+                r.Empleado.Nombres + " " + r.Empleado.Apellidos,
+                r.IdAsignacion,
+                r.HoraEntrada,
+                r.HoraSalida,
+                r.CodFuenteMarcacion,
+                r.FuenteMarcacion.Nombre,
+                r.Observacion,
+                r.RegistradoPor,
+                r.CreadoEn))
+            .ToListAsync(cancellationToken);
+
+        return Result.Success(new PagedResult<RegistroAsistenciaDto>(items, totalCount, pageNumber, pageSize));
+    }
+}
+
