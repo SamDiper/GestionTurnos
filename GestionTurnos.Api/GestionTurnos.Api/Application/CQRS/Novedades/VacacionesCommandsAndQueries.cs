@@ -1,14 +1,18 @@
 using FluentValidation;
 using GestionTurnos.Api.Application.Common.Security;
 using GestionTurnos.Api.Application.DTOs.Novedades;
+using GestionTurnos.Api.Application.Common;
 using GestionTurnos.Api.Application.Interfaces;
+using GestionTurnos.Api.Application.Services;
 using GestionTurnos.Api.Domain.Entities.Novedades;
+using GestionTurnos.Api.Domain.Entities.Organizacion;
 using GestionTurnos.Api.Domain.Enums;
 using GestionTurnos.Api.Domain.Interfaces;
 using GestionTurnos.Api.Domain.Shared;
 using GestionTurnos.Api.Infrastructure.Persistence;
 using GestionTurnos.Api.Infrastructure.Persistence.Context;
 using MediatR;
+using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 
 namespace GestionTurnos.Api.Application.CQRS.Novedades;
@@ -122,93 +126,16 @@ public sealed class SolicitarMisVacacionesCommandHandler
         var idEmpleado = idEmpleadoResult.Value;
         var idUsuario = _currentUserService.UserId!.Value;
 
-        // 1. Calcula dias_solicitados en el backend excluyendo festivos y fines de semana (Sección 3.7 punto 1)
-        decimal diasSolicitados = await _diasCalculator.CalcularDiasSolicitadosAsync(
-            request.FechaInicio, request.FechaFin, cancellationToken);
-
-        if (diasSolicitados <= 0)
-        {
-            return Result.Failure<ResultadoSolicitudVacacionesDto>(new Error(
-                "Vacaciones.SinDiasHabiles",
-                "El rango de fechas seleccionado no contiene días hábiles laborables.",
-                ErrorType.Failure));
-        }
-
-        // 2. Lee novedades.v_saldo_vacaciones y exige dias_disponibles - dias_en_solicitud >= dias_solicitados
-        var saldo = await _context.VistaSaldosVacaciones
-            .AsNoTracking()
-            .FirstOrDefaultAsync(v => v.IdEmpleado == idEmpleado, cancellationToken);
-
-        decimal saldoEfectivo = (saldo?.DiasDisponibles ?? 0m) - (saldo?.DiasEnSolicitud ?? 0m);
-        if (saldoEfectivo < diasSolicitados)
-        {
-            return Result.Failure<ResultadoSolicitudVacacionesDto>(new Error(
-                "Vacaciones.SaldoInsuficiente",
-                $"Saldo de vacaciones insuficiente. Días requeridos: {diasSolicitados:0.##}, saldo disponible descontando solicitudes en curso: {saldoEfectivo:0.##}.",
-                ErrorType.Conflict));
-        }
-
-        // Validar cruce con solicitudes vigentes (ex_vacaciones_sin_cruce)
-        bool existeCruce = await _context.SolicitudesVacaciones
-            .AsNoTracking()
-            .AnyAsync(v => v.IdEmpleado == idEmpleado &&
-                           (v.CodEstadoSolicitud == EstadosSolicitud.Pendiente ||
-                            v.CodEstadoSolicitud == EstadosSolicitud.Aprobada) &&
-                           request.FechaInicio <= v.FechaFin &&
-                           v.FechaInicio <= request.FechaFin, cancellationToken);
-
-        if (existeCruce)
-        {
-            return Result.Failure<ResultadoSolicitudVacacionesDto>(new Error(
-                "Vacaciones.CruceFechas",
-                "Ya existe una solicitud de vacaciones en esas fechas.",
-                ErrorType.Conflict));
-        }
-
-        // 3. Inserta en novedades.solicitud_vacaciones
-        var solicitud = new SolicitudVacaciones
-        {
-            IdEmpleado = idEmpleado,
-            FechaInicio = request.FechaInicio,
-            FechaFin = request.FechaFin,
-            DiasSolicitados = diasSolicitados,
-            CodEstadoSolicitud = EstadosSolicitud.Pendiente,
-            Observacion = string.IsNullOrWhiteSpace(request.Observacion) ? null : request.Observacion.Trim(),
-            SolicitadoPor = idUsuario,
-            SolicitadoEn = DateTimeOffset.UtcNow
-        };
-
-        try
-        {
-            await _context.SolicitudesVacaciones.AddAsync(solicitud, cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            // 4. Informa (sin bloquear) si existen turnos programados en ese rango consultando turnos.asignacion
-            var fechasTurnosEnRango = await _context.Asignaciones
-                .AsNoTracking()
-                .Where(a => a.IdEmpleado == idEmpleado &&
-                            a.CodEstadoAsignacion != EstadosAsignacion.Anulada &&
-                            a.Fecha >= request.FechaInicio &&
-                            a.Fecha <= request.FechaFin)
-                .OrderBy(a => a.Fecha)
-                .Select(a => a.Fecha)
-                .Distinct()
-                .ToListAsync(cancellationToken);
-
-            string? advertencia = fechasTurnosEnRango.Count > 0
-                ? $"Advertencia: existen {fechasTurnosEnRango.Count} día(s) con turnos programados en el rango solicitado."
-                : null;
-
-            return Result.Success(new ResultadoSolicitudVacacionesDto(
-                solicitud.IdSolicitudVacaciones,
-                diasSolicitados,
-                fechasTurnosEnRango,
-                advertencia));
-        }
-        catch (Exception ex)
-        {
-            return Result.Failure<ResultadoSolicitudVacacionesDto>(DatabaseErrorTranslator.Translate(ex));
-        }
+        return await SolicitudesVacacionesComunes.CrearAsync(
+            _context,
+            _unitOfWork,
+            _diasCalculator,
+            idEmpleado,
+            idUsuario,
+            request.FechaInicio,
+            request.FechaFin,
+            request.Observacion,
+            cancellationToken);
     }
 }
 
@@ -462,13 +389,11 @@ public sealed class ResolverSolicitudVacacionesCommandHandler
         {
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
-            var solicitud = await _context.SolicitudesVacaciones
-                .FirstOrDefaultAsync(
-                    s => s.IdSolicitudVacaciones == request.IdSolicitudVacaciones &&
-                         s.CodEstadoSolicitud == EstadosSolicitud.Pendiente,
-                    cancellationToken);
+            // Bloqueos: empleado (serializa saldo y programación de turnos) y después la solicitud (FOR UPDATE).
+            var solicitud = await SolicitudesVacacionesComunes.BloquearSolicitudAsync(
+                _context, request.IdSolicitudVacaciones, cancellationToken);
 
-            if (solicitud is null)
+            if (solicitud is null || solicitud.CodEstadoSolicitud != EstadosSolicitud.Pendiente)
             {
                 await _unitOfWork.RollbackTransactionAsync(cancellationToken);
                 return Result.Failure(new Error(
@@ -479,7 +404,7 @@ public sealed class ResolverSolicitudVacacionesCommandHandler
 
             if (request.Aprobar)
             {
-                // 1. Al aprobar vacaciones revalida el saldo dentro de la transacción (Sección 4)
+                // 1. Revalidar el saldo dentro de la transacción (el saldo nunca se guarda: se lee de la vista).
                 var saldo = await _context.VistaSaldosVacaciones
                     .AsNoTracking()
                     .FirstOrDefaultAsync(v => v.IdEmpleado == solicitud.IdEmpleado, cancellationToken);
@@ -494,58 +419,24 @@ public sealed class ResolverSolicitudVacacionesCommandHandler
                         ErrorType.Conflict));
                 }
 
-                // 2. Buscar asignaciones no anuladas del empleado en el rango (Sección 4)
-                var turnosEnConflicto = await _context.Asignaciones
-                    .Where(a => a.IdEmpleado == solicitud.IdEmpleado &&
-                                a.CodEstadoAsignacion != EstadosAsignacion.Anulada &&
-                                a.Fecha >= solicitud.FechaInicio &&
-                                a.Fecha <= solicitud.FechaFin)
-                    .ToListAsync(cancellationToken);
+                // 2. Turnos que chocan: asistencia, CONFLICTO_BLOQUEA y confirmación (sección 11).
+                var turnos = await ConflictosTurnosNovedad.TurnosEnRangoVacacionesAsync(
+                    _context, solicitud.IdEmpleado, solicitud.FechaInicio, solicitud.FechaFin, asTracking: true, cancellationToken);
 
-                if (turnosEnConflicto.Count > 0)
+                var regla = await ConflictosTurnosNovedad.AplicarReglaAsync(
+                    _context,
+                    _parametroService,
+                    turnos,
+                    solicitud.FechaInicio,
+                    request.ConfirmarAnulacionTurnos,
+                    "Vacaciones",
+                    $"Anulada por vacaciones aprobadas (solicitud #{solicitud.IdSolicitudVacaciones})",
+                    cancellationToken);
+
+                if (regla.IsFailure)
                 {
-                    bool conflictoBloquea = await _parametroService.ObtenerBooleanoAsync(
-                        ParametrosCodigos.ConflictoBloquea, solicitud.FechaInicio, cancellationToken);
-
-                    var fechasStr = string.Join(", ", turnosEnConflicto.Select(t => t.Fecha.ToString("yyyy-MM-dd")).Distinct());
-
-                    if (conflictoBloquea)
-                    {
-                        await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-                        return Result.Failure(new Error(
-                            "Vacaciones.ConflictoConTurnos",
-                            $"No se puede aprobar porque el empleado tiene turnos programados en las fechas: {fechasStr} (parámetro CONFLICTO_BLOQUEA activo).",
-                            ErrorType.Conflict));
-                    }
-
-                    if (!request.ConfirmarAnulacionTurnos)
-                    {
-                        await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-                        return Result.Failure(new Error(
-                            "Vacaciones.ConfirmacionRequerida",
-                            $"El empleado tiene turnos programados en las fechas: {fechasStr}. Confirme la aprobación para anular esas asignaciones en la misma transacción.",
-                            ErrorType.Conflict));
-                    }
-
-                    // Anular esas asignaciones en la misma transacción (verificando que no tengan asistencia)
-                    var idsConflicto = turnosEnConflicto.Select(t => t.IdAsignacion).ToList();
-                    bool algunoConAsistencia = await _context.RegistrosAsistencia
-                        .AsNoTracking()
-                        .AnyAsync(r => r.IdAsignacion != null && idsConflicto.Contains(r.IdAsignacion.Value), cancellationToken);
-
-                    if (algunoConAsistencia)
-                    {
-                        await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-                        return Result.Failure(new Error(
-                            "Vacaciones.TurnoConAsistencia",
-                            "Uno o más turnos en el rango ya tienen registro de asistencia y no pueden ser anulados.",
-                            ErrorType.Conflict));
-                    }
-
-                    foreach (var turno in turnosEnConflicto)
-                    {
-                        turno.CodEstadoAsignacion = EstadosAsignacion.Anulada;
-                    }
+                    await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                    return regla;
                 }
 
                 solicitud.CodEstadoSolicitud = EstadosSolicitud.Aprobada;
@@ -561,7 +452,7 @@ public sealed class ResolverSolicitudVacacionesCommandHandler
                 solicitud.MotivoRechazo = request.MotivoRechazo!.Trim();
             }
 
-            // No insertar filas manuales en bitácora: el disparador tg_aud_vacaciones ya lo registra (Sección 4)
+            // No insertar filas manuales en bitácora: el disparador tg_aud_vacaciones ya lo registra.
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
             return Result.Success();
         }
@@ -645,3 +536,367 @@ public sealed class ListarSaldosVacacionesAdminQueryHandler
     }
 }
 
+
+// =====================================================================
+// SECCIÓN 11: SOLICITUD A NOMBRE DEL EMPLEADO, TURNOS QUE CHOCAN Y ANULACIÓN
+// =====================================================================
+
+/// <summary>
+/// Sección 11: el administrador crea una solicitud a nombre del empleado. Mismas reglas que la del empleado
+/// (días hábiles, saldo efectivo, sin cruce) y nace PENDIENTE; se aprueba con el flujo normal.
+/// </summary>
+[RequirePermission(PermisosSistema.VacacionesAprobar)]
+public sealed record RegistrarSolicitudVacacionesAdminCommand(
+    long IdEmpleado,
+    DateOnly FechaInicio,
+    DateOnly FechaFin,
+    string? Observacion) : IRequest<Result<ResultadoSolicitudVacacionesDto>>;
+
+public sealed class RegistrarSolicitudVacacionesAdminCommandValidator
+    : AbstractValidator<RegistrarSolicitudVacacionesAdminCommand>
+{
+    public RegistrarSolicitudVacacionesAdminCommandValidator()
+    {
+        RuleFor(x => x.IdEmpleado).GreaterThan(0);
+        RuleFor(x => x.FechaInicio).NotEmpty();
+        RuleFor(x => x.FechaFin)
+            .NotEmpty()
+            .GreaterThanOrEqualTo(x => x.FechaInicio)
+            .WithMessage("La fecha de fin debe ser mayor o igual a la fecha de inicio.");
+        RuleFor(x => x.Observacion).MaximumLength(300).When(x => !string.IsNullOrWhiteSpace(x.Observacion));
+    }
+}
+
+public sealed class RegistrarSolicitudVacacionesAdminCommandHandler
+    : IRequestHandler<RegistrarSolicitudVacacionesAdminCommand, Result<ResultadoSolicitudVacacionesDto>>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ICurrentUserService _currentUserService;
+    private readonly IDiasVacacionesCalculator _diasCalculator;
+
+    public RegistrarSolicitudVacacionesAdminCommandHandler(
+        GestionTurnosContext context,
+        IUnitOfWork unitOfWork,
+        ICurrentUserService currentUserService,
+        IDiasVacacionesCalculator diasCalculator)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+        _currentUserService = currentUserService;
+        _diasCalculator = diasCalculator;
+    }
+
+    public async Task<Result<ResultadoSolicitudVacacionesDto>> Handle(
+        RegistrarSolicitudVacacionesAdminCommand request,
+        CancellationToken cancellationToken)
+    {
+        bool empleadoActivo = await _context.Empleados
+            .AsNoTracking()
+            .AnyAsync(e => e.IdEmpleado == request.IdEmpleado && e.CodEstadoEmpleado == EstadosEmpleado.Activo, cancellationToken);
+
+        if (!empleadoActivo)
+        {
+            return Result.Failure<ResultadoSolicitudVacacionesDto>(new Error(
+                "Vacaciones.EmpleadoNoActivo",
+                "Solo se pueden registrar solicitudes de vacaciones para empleados activos.",
+                ErrorType.Failure));
+        }
+
+        return await SolicitudesVacacionesComunes.CrearAsync(
+            _context,
+            _unitOfWork,
+            _diasCalculator,
+            request.IdEmpleado,
+            _currentUserService.UserId!.Value,
+            request.FechaInicio,
+            request.FechaFin,
+            request.Observacion,
+            cancellationToken);
+    }
+}
+
+/// <summary>
+/// Sección 11: turnos que chocan con una solicitud de vacaciones, para decidir antes de aprobar.
+/// Indica el valor vigente de CONFLICTO_BLOQUEA y qué turnos ya tienen asistencia (esos impiden aprobar).
+/// </summary>
+[RequirePermission(PermisosSistema.VacacionesAprobar)]
+public sealed record ConsultarTurnosEnConflictoVacacionesQuery(long IdSolicitudVacaciones)
+    : IRequest<Result<ConflictosSolicitudVacacionesDto>>;
+
+public sealed class ConsultarTurnosEnConflictoVacacionesQueryHandler
+    : IRequestHandler<ConsultarTurnosEnConflictoVacacionesQuery, Result<ConflictosSolicitudVacacionesDto>>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IParametroService _parametroService;
+
+    public ConsultarTurnosEnConflictoVacacionesQueryHandler(
+        GestionTurnosContext context,
+        IParametroService parametroService)
+    {
+        _context = context;
+        _parametroService = parametroService;
+    }
+
+    public async Task<Result<ConflictosSolicitudVacacionesDto>> Handle(
+        ConsultarTurnosEnConflictoVacacionesQuery request,
+        CancellationToken cancellationToken)
+    {
+        var solicitud = await _context.SolicitudesVacaciones
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.IdSolicitudVacaciones == request.IdSolicitudVacaciones, cancellationToken);
+
+        if (solicitud is null)
+        {
+            return Result.Failure<ConflictosSolicitudVacacionesDto>(SolicitudesVacacionesComunes.NoEncontrada);
+        }
+
+        var turnos = await ConflictosTurnosNovedad.TurnosEnRangoVacacionesAsync(
+            _context, solicitud.IdEmpleado, solicitud.FechaInicio, solicitud.FechaFin, asTracking: false, cancellationToken);
+
+        bool conflictoBloquea = await _parametroService.ObtenerBooleanoAsync(
+            ParametrosCodigos.ConflictoBloquea, solicitud.FechaInicio, cancellationToken);
+
+        return Result.Success(new ConflictosSolicitudVacacionesDto(
+            solicitud.IdSolicitudVacaciones,
+            solicitud.IdEmpleado,
+            solicitud.FechaInicio,
+            solicitud.FechaFin,
+            conflictoBloquea,
+            await ConflictosTurnosNovedad.DetallarAsync(_context, turnos, cancellationToken)));
+    }
+}
+
+/// <summary>
+/// Sección 11: anula unas vacaciones APROBADAS que todavía no inician. Quedan CANCELADA con el motivo,
+/// y el saldo vuelve solo porque la vista solo descuenta las APROBADA. Los turnos que se anularon al aprobar
+/// no se restauran: se reprograman con el flujo normal.
+/// </summary>
+[RequirePermission(PermisosSistema.VacacionesAprobar)]
+public sealed record AnularVacacionesAprobadasCommand(
+    long IdSolicitudVacaciones,
+    string Motivo) : IRequest<Result>;
+
+public sealed class AnularVacacionesAprobadasCommandValidator : AbstractValidator<AnularVacacionesAprobadasCommand>
+{
+    public AnularVacacionesAprobadasCommandValidator()
+    {
+        RuleFor(x => x.IdSolicitudVacaciones).GreaterThan(0);
+        RuleFor(x => x.Motivo)
+            .NotEmpty().WithMessage("El motivo de la anulación es obligatorio.")
+            .MaximumLength(300);
+    }
+}
+
+public sealed class AnularVacacionesAprobadasCommandHandler : IRequestHandler<AnularVacacionesAprobadasCommand, Result>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ICurrentUserService _currentUserService;
+    private readonly IConfiguration _configuration;
+
+    public AnularVacacionesAprobadasCommandHandler(
+        GestionTurnosContext context,
+        IUnitOfWork unitOfWork,
+        ICurrentUserService currentUserService,
+        IConfiguration configuration)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+        _currentUserService = currentUserService;
+        _configuration = configuration;
+    }
+
+    public async Task<Result> Handle(AnularVacacionesAprobadasCommand request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            var solicitud = await SolicitudesVacacionesComunes.BloquearSolicitudAsync(
+                _context, request.IdSolicitudVacaciones, cancellationToken);
+
+            if (solicitud is null)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure(SolicitudesVacacionesComunes.NoEncontrada);
+            }
+
+            if (solicitud.CodEstadoSolicitud != EstadosSolicitud.Aprobada)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure(new Error(
+                    "Vacaciones.NoAprobada",
+                    "Solo se pueden anular vacaciones aprobadas. Una solicitud pendiente se rechaza o se cancela.",
+                    ErrorType.Conflict));
+            }
+
+            var hoy = TimeZoneHelper.GetCurrentDateInEmpresaTimeZone(_configuration);
+            if (solicitud.FechaInicio <= hoy)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure(new Error(
+                    "Vacaciones.YaIniciadas",
+                    $"No se pueden anular vacaciones que ya iniciaron (inicio: {solicitud.FechaInicio:yyyy-MM-dd}).",
+                    ErrorType.Conflict));
+            }
+
+            solicitud.CodEstadoSolicitud = EstadosSolicitud.Cancelada;
+            solicitud.ResueltoPor = _currentUserService.UserId!.Value;
+            solicitud.ResueltoEn = DateTimeOffset.UtcNow;
+            solicitud.MotivoRechazo = request.Motivo.Trim();
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+            return Result.Failure(DatabaseErrorTranslator.Translate(ex));
+        }
+    }
+}
+
+/// <summary>
+/// Lógica común de solicitudes de vacaciones (empleado y administrador).
+/// </summary>
+internal static class SolicitudesVacacionesComunes
+{
+    public static readonly Error NoEncontrada = new(
+        "Vacaciones.SolicitudNoEncontrada",
+        "La solicitud de vacaciones no existe.",
+        ErrorType.NotFound);
+
+    /// <summary>
+    /// Bloquea el empleado y después la solicitud (orden único, igual que la programación de turnos).
+    /// Debe llamarse dentro de una transacción.
+    /// </summary>
+    public static async Task<SolicitudVacaciones?> BloquearSolicitudAsync(
+        GestionTurnosContext context,
+        long idSolicitud,
+        CancellationToken cancellationToken)
+    {
+        var idEmpleado = await context.SolicitudesVacaciones
+            .AsNoTracking()
+            .Where(s => s.IdSolicitudVacaciones == idSolicitud)
+            .Select(s => (long?)s.IdEmpleado)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (idEmpleado is null)
+        {
+            return null;
+        }
+
+        await context.BloquearPorIdAsync<Empleado>(idEmpleado.Value, cancellationToken);
+        return await context.BloquearPorIdAsync<SolicitudVacaciones>(idSolicitud, cancellationToken);
+    }
+
+    /// <summary>
+    /// Crea una solicitud PENDIENTE: calcula los días hábiles en el backend, exige saldo efectivo
+    /// (disponible menos lo que ya está en solicitud) y que no se cruce con otra solicitud vigente.
+    /// El empleado queda bloqueado durante la transacción: dos solicitudes simultáneas no gastan el mismo saldo.
+    /// </summary>
+    public static async Task<Result<ResultadoSolicitudVacacionesDto>> CrearAsync(
+        GestionTurnosContext context,
+        IUnitOfWork unitOfWork,
+        IDiasVacacionesCalculator diasCalculator,
+        long idEmpleado,
+        long idUsuarioSolicitante,
+        DateOnly fechaInicio,
+        DateOnly fechaFin,
+        string? observacion,
+        CancellationToken cancellationToken)
+    {
+        // 1. Días solicitados excluyendo festivos y fines de semana
+        decimal diasSolicitados = await diasCalculator.CalcularDiasSolicitadosAsync(fechaInicio, fechaFin, cancellationToken);
+
+        if (diasSolicitados <= 0)
+        {
+            return Result.Failure<ResultadoSolicitudVacacionesDto>(new Error(
+                "Vacaciones.SinDiasHabiles",
+                "El rango de fechas seleccionado no contiene días hábiles laborables.",
+                ErrorType.Failure));
+        }
+
+        try
+        {
+            await unitOfWork.BeginTransactionAsync(cancellationToken);
+            await context.BloquearPorIdAsync<Empleado>(idEmpleado, cancellationToken);
+
+            // 2. Saldo efectivo leído de novedades.v_saldo_vacaciones (nunca se guarda)
+            var saldo = await context.VistaSaldosVacaciones
+                .AsNoTracking()
+                .FirstOrDefaultAsync(v => v.IdEmpleado == idEmpleado, cancellationToken);
+
+            decimal saldoEfectivo = (saldo?.DiasDisponibles ?? 0m) - (saldo?.DiasEnSolicitud ?? 0m);
+            if (saldoEfectivo < diasSolicitados)
+            {
+                await unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure<ResultadoSolicitudVacacionesDto>(new Error(
+                    "Vacaciones.SaldoInsuficiente",
+                    $"Saldo de vacaciones insuficiente. Días requeridos: {diasSolicitados:0.##}, saldo disponible descontando solicitudes en curso: {saldoEfectivo:0.##}.",
+                    ErrorType.Conflict));
+            }
+
+            // 3. Sin cruce con solicitudes vigentes (ex_vacaciones_sin_cruce)
+            bool existeCruce = await context.SolicitudesVacaciones
+                .AsNoTracking()
+                .AnyAsync(v => v.IdEmpleado == idEmpleado &&
+                               (v.CodEstadoSolicitud == EstadosSolicitud.Pendiente ||
+                                v.CodEstadoSolicitud == EstadosSolicitud.Aprobada) &&
+                               fechaInicio <= v.FechaFin &&
+                               v.FechaInicio <= fechaFin, cancellationToken);
+
+            if (existeCruce)
+            {
+                await unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure<ResultadoSolicitudVacacionesDto>(new Error(
+                    "Vacaciones.CruceFechas",
+                    "Ya existe una solicitud de vacaciones en esas fechas.",
+                    ErrorType.Conflict));
+            }
+
+            var solicitud = new SolicitudVacaciones
+            {
+                IdEmpleado = idEmpleado,
+                FechaInicio = fechaInicio,
+                FechaFin = fechaFin,
+                DiasSolicitados = diasSolicitados,
+                CodEstadoSolicitud = EstadosSolicitud.Pendiente,
+                Observacion = string.IsNullOrWhiteSpace(observacion) ? null : observacion.Trim(),
+                SolicitadoPor = idUsuarioSolicitante,
+                SolicitadoEn = DateTimeOffset.UtcNow
+            };
+
+            await context.SolicitudesVacaciones.AddAsync(solicitud, cancellationToken);
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
+
+            // 4. Informa (sin bloquear) si hay turnos programados en el rango
+            var fechasTurnosEnRango = await context.Asignaciones
+                .AsNoTracking()
+                .Where(a => a.IdEmpleado == idEmpleado &&
+                            a.CodEstadoAsignacion != EstadosAsignacion.Anulada &&
+                            a.Fecha >= fechaInicio &&
+                            a.Fecha <= fechaFin)
+                .OrderBy(a => a.Fecha)
+                .Select(a => a.Fecha)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            string? advertencia = fechasTurnosEnRango.Count > 0
+                ? $"Advertencia: existen {fechasTurnosEnRango.Count} día(s) con turnos programados en el rango solicitado."
+                : null;
+
+            return Result.Success(new ResultadoSolicitudVacacionesDto(
+                solicitud.IdSolicitudVacaciones,
+                diasSolicitados,
+                fechasTurnosEnRango,
+                advertencia));
+        }
+        catch (Exception ex)
+        {
+            await unitOfWork.RollbackTransactionAsync(cancellationToken);
+            return Result.Failure<ResultadoSolicitudVacacionesDto>(DatabaseErrorTranslator.Translate(ex));
+        }
+    }
+}

@@ -40,3 +40,36 @@ public sealed record HorasPorCategoriaDto(
     int TotalMinutos,
     decimal TotalHoras);
 
+/// <summary>
+/// Fila del panel de asistencia del día: programado contra real (sección 10).
+/// </summary>
+public sealed record PanelAsistenciaTurnoDto(
+    long IdAsignacion,
+    long IdEmpleado,
+    string NombreEmpleado,
+    int IdArea,
+    string NombreArea,
+    int IdTurno,
+    string NombreTurno,
+    DateTimeOffset ProgramadoInicio,
+    DateTimeOffset ProgramadoFin,
+    long? IdRegistro,
+    DateTimeOffset? HoraEntrada,
+    DateTimeOffset? HoraSalida,
+    int MinutosTarde,
+    bool Tarde,
+    string Estado,
+    string? NovedadQueExplica);
+
+/// <summary>
+/// Panel de asistencia del día (sección 10): resumen y detalle por turno.
+/// </summary>
+public sealed record PanelAsistenciaDiaDto(
+    DateOnly Fecha,
+    int ToleranciaEntradaMinutos,
+    int TurnosProgramados,
+    int ConAsistencia,
+    int EnCurso,
+    int Tardanzas,
+    int SinAsistencia,
+    IReadOnlyList<PanelAsistenciaTurnoDto> Turnos);

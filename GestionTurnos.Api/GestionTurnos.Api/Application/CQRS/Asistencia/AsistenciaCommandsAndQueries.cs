@@ -3,6 +3,7 @@ using GestionTurnos.Api.Application.Common.Security;
 using GestionTurnos.Api.Application.DTOs.Asistencia;
 using GestionTurnos.Api.Application.Interfaces;
 using GestionTurnos.Api.Domain.Entities.Asistencia;
+using GestionTurnos.Api.Domain.Entities.Organizacion;
 using GestionTurnos.Api.Domain.Enums;
 using GestionTurnos.Api.Domain.Interfaces;
 using GestionTurnos.Api.Domain.Shared;
@@ -263,41 +264,91 @@ public sealed class RegistrarOCorregirAsistenciaManualCommandHandler
         CancellationToken cancellationToken)
     {
         var adminId = _currentUserService.UserId!.Value;
-
-        if (request.IdAsignacion.HasValue)
-        {
-            bool asignacionDeEmpleado = await _context.Asignaciones
-                .AsNoTracking()
-                .AnyAsync(a => a.IdAsignacion == request.IdAsignacion.Value &&
-                               a.IdEmpleado == request.IdEmpleado &&
-                               a.CodEstadoAsignacion != EstadosAsignacion.Anulada, cancellationToken);
-
-            if (!asignacionDeEmpleado)
-            {
-                return Result.Failure<long>(new Error(
-                    "Asistencia.AsignacionInvalida",
-                    "La asignación seleccionada no pertenece al empleado o se encuentra anulada.",
-                    ErrorType.Failure));
-            }
-        }
+        bool esCorreccion = request.IdRegistro.HasValue && request.IdRegistro.Value > 0;
 
         try
         {
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
-            RegistroAsistencia registro;
-            if (request.IdRegistro.HasValue && request.IdRegistro.Value > 0)
+            // Bloquea el empleado: dos marcaciones simultáneas no pueden pasar ambas la revisión de cruces.
+            var empleado = await _context.BloquearPorIdAsync<Empleado>(request.IdEmpleado, cancellationToken);
+            if (empleado is null)
             {
-                var existente = await _context.RegistrosAsistencia
-                    .FirstOrDefaultAsync(r => r.IdRegistro == request.IdRegistro.Value, cancellationToken);
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Fallo("Asistencia.EmpleadoNoEncontrado", "El empleado no existe.", ErrorType.NotFound);
+            }
+
+            if (request.IdAsignacion.HasValue)
+            {
+                bool asignacionDeEmpleado = await _context.Asignaciones
+                    .AsNoTracking()
+                    .AnyAsync(a => a.IdAsignacion == request.IdAsignacion.Value &&
+                                   a.IdEmpleado == request.IdEmpleado &&
+                                   a.CodEstadoAsignacion != EstadosAsignacion.Anulada, cancellationToken);
+
+                if (!asignacionDeEmpleado)
+                {
+                    await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                    return Fallo("Asistencia.AsignacionInvalida",
+                        "La asignación seleccionada no pertenece al empleado o se encuentra anulada.", ErrorType.Failure);
+                }
+
+                // Una asignación tiene a lo sumo un registro (UNIQUE id_asignacion).
+                bool asignacionUsada = await _context.RegistrosAsistencia
+                    .AsNoTracking()
+                    .AnyAsync(r => r.IdAsignacion == request.IdAsignacion.Value &&
+                                   (!esCorreccion || r.IdRegistro != request.IdRegistro!.Value), cancellationToken);
+                if (asignacionUsada)
+                {
+                    await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                    return Fallo("Asistencia.EntradaYaRegistrada",
+                        "Esa asignación ya tiene otro registro de asistencia; corrija ese registro en lugar de crear uno nuevo.", ErrorType.Conflict);
+                }
+            }
+
+            // Sin cruces con otras marcaciones del empleado, y a lo sumo un registro abierto.
+            var otros = _context.RegistrosAsistencia
+                .AsNoTracking()
+                .Where(r => r.IdEmpleado == request.IdEmpleado &&
+                            (!esCorreccion || r.IdRegistro != request.IdRegistro!.Value))
+                .Where(r => r.HoraSalida == null || r.HoraSalida > request.HoraEntrada);
+
+            // Sin salida, el registro queda abierto hacia adelante: cualquier otro que termine después de la entrada se cruza.
+            if (request.HoraSalida.HasValue)
+            {
+                var salida = request.HoraSalida.Value;
+                otros = otros.Where(r => r.HoraEntrada < salida);
+            }
+
+            bool seCruza = await otros.AnyAsync(cancellationToken);
+            if (seCruza)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Fallo("Asistencia.CruceMarcaciones",
+                    "La marcación se cruza con otro registro de asistencia del empleado (o el empleado ya tiene una entrada abierta).",
+                    ErrorType.Conflict);
+            }
+
+            RegistroAsistencia registro;
+            if (esCorreccion)
+            {
+                var existente = await _context.BloquearPorIdAsync<RegistroAsistencia>(request.IdRegistro!.Value, cancellationToken);
 
                 if (existente is null)
                 {
                     await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-                    return Result.Failure<long>(new Error("Asistencia.RegistroNoEncontrado", "El registro de asistencia no existe.", ErrorType.NotFound));
+                    return Fallo("Asistencia.RegistroNoEncontrado", "El registro de asistencia no existe.", ErrorType.NotFound);
                 }
 
-                existente.IdEmpleado = request.IdEmpleado;
+                // Corregir una marcación no la traslada a otro empleado.
+                if (existente.IdEmpleado != request.IdEmpleado)
+                {
+                    await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                    return Fallo("Asistencia.EmpleadoNoCoincide",
+                        "El registro pertenece a otro empleado; una corrección no cambia el empleado de la marcación.", ErrorType.Conflict);
+                }
+
+                // El disparador tg_aud_registro deja en la bitácora el valor anterior y el nuevo.
                 existente.IdAsignacion = request.IdAsignacion;
                 existente.HoraEntrada = request.HoraEntrada;
                 existente.HoraSalida = request.HoraSalida;
@@ -324,11 +375,8 @@ public sealed class RegistrarOCorregirAsistenciaManualCommandHandler
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // Reliquidar horas después (Sección 3.6 y 6.3)
-            if (registro.HoraSalida.HasValue)
-            {
-                await _liquidacionCalculator.LiquidarRegistroAsync(registro.IdRegistro, cancellationToken);
-            }
+            // Reliquidar en la misma transacción (sección 6.3). Sin salida, la liquidación limpia el detalle anterior.
+            await _liquidacionCalculator.LiquidarRegistroAsync(registro.IdRegistro, cancellationToken);
 
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
             return Result.Success(registro.IdRegistro);
@@ -339,6 +387,9 @@ public sealed class RegistrarOCorregirAsistenciaManualCommandHandler
             return Result.Failure<long>(DatabaseErrorTranslator.Translate(ex));
         }
     }
+
+    private static Result<long> Fallo(string codigo, string mensaje, ErrorType tipo) =>
+        Result.Failure<long>(new Error(codigo, mensaje, tipo));
 }
 
 // =====================================================================
@@ -634,3 +685,148 @@ public sealed class ListarRegistrosAsistenciaAdminQueryHandler
     }
 }
 
+
+// =====================================================================
+// SECCIÓN 10: PANEL DE ASISTENCIA DEL DÍA (permiso: asistencia.consultar)
+// =====================================================================
+
+/// <summary>
+/// Panel del día: cada turno programado (no anulado) contra su marcación real, con tardanza y turnos sin asistencia.
+/// La tardanza se mide contra el inicio programado y se marca cuando supera TOLERANCIA_ENTRADA_MIN.
+/// Un turno sin asistencia muestra la novedad aprobada que lo explica (una ausencia no anula el turno).
+/// Estados: PROGRAMADO (no ha iniciado), SIN_ENTRADA (ya inició y no hay marcación), EN_CURSO,
+/// COMPLETADO y SIN_ASISTENCIA (terminó sin marcación).
+/// </summary>
+[RequirePermission(PermisosSistema.AsistenciaConsultar)]
+public sealed record ObtenerPanelAsistenciaDiaQuery(
+    DateOnly? Fecha = null,
+    int? IdArea = null) : IRequest<Result<PanelAsistenciaDiaDto>>;
+
+public sealed class ObtenerPanelAsistenciaDiaQueryHandler
+    : IRequestHandler<ObtenerPanelAsistenciaDiaQuery, Result<PanelAsistenciaDiaDto>>
+{
+    public const string EstadoProgramado = "PROGRAMADO";
+    public const string EstadoSinEntrada = "SIN_ENTRADA";
+    public const string EstadoEnCurso = "EN_CURSO";
+    public const string EstadoCompletado = "COMPLETADO";
+    public const string EstadoSinAsistencia = "SIN_ASISTENCIA";
+
+    private readonly GestionTurnosContext _context;
+    private readonly IParametroService _parametroService;
+    private readonly IConfiguration _configuration;
+
+    public ObtenerPanelAsistenciaDiaQueryHandler(
+        GestionTurnosContext context,
+        IParametroService parametroService,
+        IConfiguration configuration)
+    {
+        _context = context;
+        _parametroService = parametroService;
+        _configuration = configuration;
+    }
+
+    public async Task<Result<PanelAsistenciaDiaDto>> Handle(
+        ObtenerPanelAsistenciaDiaQuery request,
+        CancellationToken cancellationToken)
+    {
+        var fecha = request.Fecha ?? Application.Common.TimeZoneHelper.GetCurrentDateInEmpresaTimeZone(_configuration);
+        var ahora = DateTimeOffset.UtcNow;
+
+        int tolerancia = await _parametroService.ObtenerEnteroAsync(
+            ParametrosCodigos.ToleranciaEntradaMin, fecha, cancellationToken);
+
+        var query = _context.Asignaciones
+            .AsNoTracking()
+            .Where(a => a.Fecha == fecha && a.CodEstadoAsignacion != EstadosAsignacion.Anulada);
+
+        if (request.IdArea.HasValue)
+        {
+            query = query.Where(a => a.Empleado.IdArea == request.IdArea.Value);
+        }
+
+        var filas = await query
+            .Select(a => new
+            {
+                a.IdAsignacion,
+                a.IdEmpleado,
+                NombreEmpleado = a.Empleado.Nombres + " " + a.Empleado.Apellidos,
+                a.Empleado.IdArea,
+                NombreArea = a.Empleado.Area.Nombre,
+                a.IdTurno,
+                NombreTurno = a.Turno.Nombre,
+                a.Periodo,
+                Registro = _context.RegistrosAsistencia
+                    .Where(r => r.IdAsignacion == a.IdAsignacion)
+                    .Select(r => new { r.IdRegistro, r.HoraEntrada, r.HoraSalida })
+                    .FirstOrDefault()
+            })
+            .ToListAsync(cancellationToken);
+
+        // Novedades aprobadas que pueden explicar los turnos sin marcación
+        var idsEmpleado = filas.Where(f => f.Registro is null).Select(f => f.IdEmpleado).Distinct().ToList();
+        var desde = filas.Count > 0 ? filas.Min(f => f.Periodo.Inicio) : DateTimeOffset.MinValue;
+        var hasta = filas.Count > 0 ? filas.Max(f => f.Periodo.Fin) : DateTimeOffset.MinValue;
+
+        var novedades = idsEmpleado.Count == 0
+            ? []
+            : await _context.Novedades
+                .AsNoTracking()
+                .Where(n => idsEmpleado.Contains(n.IdEmpleado) &&
+                            n.CodEstadoSolicitud == EstadosSolicitud.Aprobada &&
+                            n.Inicio < hasta && n.Fin > desde)
+                .Select(n => new { n.IdEmpleado, n.Inicio, n.Fin, Nombre = n.TipoNovedad.Nombre })
+                .ToListAsync(cancellationToken);
+
+        var turnos = filas
+            .OrderBy(f => f.Periodo.Inicio)
+            .ThenBy(f => f.NombreEmpleado)
+            .Select(f =>
+            {
+                int minutosTarde = f.Registro is null
+                    ? 0
+                    : Math.Max(0, (int)Math.Floor((f.Registro.HoraEntrada - f.Periodo.Inicio).TotalMinutes));
+
+                string estado = f.Registro is not null
+                    ? (f.Registro.HoraSalida.HasValue ? EstadoCompletado : EstadoEnCurso)
+                    : ahora < f.Periodo.Inicio ? EstadoProgramado
+                    : ahora < f.Periodo.Fin ? EstadoSinEntrada
+                    : EstadoSinAsistencia;
+
+                string? novedad = f.Registro is null
+                    ? novedades
+                        .Where(n => n.IdEmpleado == f.IdEmpleado && n.Inicio < f.Periodo.Fin && n.Fin > f.Periodo.Inicio)
+                        .Select(n => n.Nombre)
+                        .FirstOrDefault()
+                    : null;
+
+                return new PanelAsistenciaTurnoDto(
+                    f.IdAsignacion,
+                    f.IdEmpleado,
+                    f.NombreEmpleado,
+                    f.IdArea,
+                    f.NombreArea,
+                    f.IdTurno,
+                    f.NombreTurno,
+                    f.Periodo.Inicio,
+                    f.Periodo.Fin,
+                    f.Registro?.IdRegistro,
+                    f.Registro?.HoraEntrada,
+                    f.Registro?.HoraSalida,
+                    minutosTarde,
+                    minutosTarde > tolerancia,
+                    estado,
+                    novedad);
+            })
+            .ToList();
+
+        return Result.Success(new PanelAsistenciaDiaDto(
+            fecha,
+            tolerancia,
+            turnos.Count,
+            turnos.Count(t => t.Estado == EstadoCompletado),
+            turnos.Count(t => t.Estado == EstadoEnCurso),
+            turnos.Count(t => t.Tarde),
+            turnos.Count(t => t.Estado == EstadoSinAsistencia),
+            turnos));
+    }
+}

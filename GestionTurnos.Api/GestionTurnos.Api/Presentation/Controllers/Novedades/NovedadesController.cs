@@ -59,7 +59,7 @@ public sealed class NovedadesController : BaseApiController
     }
 
     /// <summary>
-    /// Lista todas las novedades para gestión administrativa (permiso: novedades.aprobar).
+    /// Bandeja de novedades (sección 12). Sin estado muestra las PENDIENTE; estado=TODOS devuelve todas (permiso: novedades.aprobar).
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> ListarAdmin(
@@ -91,7 +91,8 @@ public sealed class NovedadesController : BaseApiController
             request.Remunerado,
             request.AfectaHoras,
             request.Observaciones,
-            request.UrlSoporte);
+            request.UrlSoporte,
+            request.ConfirmarAnulacionTurnos);
 
         var result = await Sender.Send(command, cancellationToken);
         return HandleResult(result);
@@ -103,14 +104,16 @@ public sealed class NovedadesController : BaseApiController
     [HttpPost("{idNovedad:long}/resolver")]
     public async Task<IActionResult> ResolverNovedad(
         long idNovedad,
-        [FromBody] ResolverSolicitudRequest request,
+        [FromBody] ResolverNovedadRequest request,
         CancellationToken cancellationToken)
     {
         var command = new ResolverNovedadCommand(
             idNovedad,
             request.Aprobar,
             request.MotivoRechazo,
-            request.ConfirmarAnulacionTurnos);
+            request.ConfirmarAnulacionTurnos,
+            request.Remunerado,
+            request.AfectaHoras);
 
         var result = await Sender.Send(command, cancellationToken);
         return HandleResult(result);

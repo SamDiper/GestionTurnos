@@ -82,6 +82,20 @@ public sealed class AsistenciaController : BaseApiController
     }
 
     /// <summary>
+    /// Panel del día (sección 10): programado contra real, tardanza y turnos sin asistencia, con filtro por área.
+    /// Sin fecha usa el día actual en la zona horaria de la empresa (permiso: asistencia.consultar).
+    /// </summary>
+    [HttpGet("panel-dia")]
+    public async Task<IActionResult> ObtenerPanelDia(
+        [FromQuery] DateOnly? fecha,
+        [FromQuery] int? idArea,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new ObtenerPanelAsistenciaDiaQuery(fecha, idArea), cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
     /// Consulta administrativa de los registros de asistencia de todos los empleados (permiso: asistencia.consultar).
     /// </summary>
     [HttpGet("registros")]

@@ -60,3 +60,38 @@ public sealed record NovedadDto(
     long? ResueltoPor,
     DateTimeOffset? ResueltoEn,
     string? MotivoRechazo);
+
+/// <summary>
+/// Turno programado que choca con unas vacaciones o una novedad (secciones 11 y 12).
+/// Un turno con asistencia impide la aprobación.
+/// </summary>
+public sealed record TurnoEnConflictoDto(
+    long IdAsignacion,
+    DateOnly Fecha,
+    int IdTurno,
+    string NombreTurno,
+    DateTimeOffset PeriodoInicio,
+    DateTimeOffset PeriodoFin,
+    string CodEstadoAsignacion,
+    bool TieneAsistencia);
+
+/// <summary>
+/// Resultado de la consulta de turnos que chocan con una solicitud de vacaciones (sección 11).
+/// </summary>
+public sealed record ConflictosSolicitudVacacionesDto(
+    long IdSolicitudVacaciones,
+    long IdEmpleado,
+    DateOnly FechaInicio,
+    DateOnly FechaFin,
+    bool ConflictoBloquea,
+    IReadOnlyList<TurnoEnConflictoDto> Turnos);
+
+/// <summary>
+/// Solicitud de vacaciones en la bandeja del administrador, con el saldo del empleado (sección 11).
+/// El saldo se lee siempre de novedades.v_saldo_vacaciones; nunca se guarda.
+/// </summary>
+public sealed record SolicitudVacacionesBandejaDto(
+    SolicitudVacacionesDto Solicitud,
+    decimal DiasDisponibles,
+    decimal DiasEnSolicitud,
+    decimal SaldoEfectivo);

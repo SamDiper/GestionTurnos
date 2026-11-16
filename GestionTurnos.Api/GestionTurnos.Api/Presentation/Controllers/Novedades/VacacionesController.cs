@@ -63,7 +63,7 @@ public sealed class VacacionesController : BaseApiController
     }
 
     /// <summary>
-    /// Lista todas las solicitudes de vacaciones para gestión administrativa (permiso: vacaciones.aprobar).
+    /// Bandeja de solicitudes con el saldo de cada empleado (sección 11). Sin estado muestra las PENDIENTE; estado=TODOS devuelve todas.
     /// </summary>
     [HttpGet("solicitudes")]
     public async Task<IActionResult> ListarSolicitudesAdmin(
@@ -75,6 +75,50 @@ public sealed class VacacionesController : BaseApiController
     {
         var query = new ListarSolicitudesVacacionesAdminQuery(idEmpleado, estado, pageNumber, pageSize);
         var result = await Sender.Send(query, cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Crea una solicitud de vacaciones a nombre del empleado; nace PENDIENTE (sección 11).
+    /// </summary>
+    [HttpPost("solicitudes")]
+    public async Task<IActionResult> RegistrarSolicitudAdmin(
+        [FromBody] RegistrarSolicitudVacacionesAdminRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new RegistrarSolicitudVacacionesAdminCommand(
+            request.IdEmpleado,
+            request.FechaInicio,
+            request.FechaFin,
+            request.Observacion);
+
+        var result = await Sender.Send(command, cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Turnos que chocan con la solicitud, el valor de CONFLICTO_BLOQUEA y cuáles tienen asistencia (sección 11).
+    /// </summary>
+    [HttpGet("solicitudes/{idSolicitudVacaciones:long}/turnos-en-conflicto")]
+    public async Task<IActionResult> ConsultarTurnosEnConflicto(
+        long idSolicitudVacaciones,
+        CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(new ConsultarTurnosEnConflictoVacacionesQuery(idSolicitudVacaciones), cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Anula unas vacaciones aprobadas que todavía no inician; el saldo vuelve (sección 11).
+    /// </summary>
+    [HttpPost("solicitudes/{idSolicitudVacaciones:long}/anular")]
+    public async Task<IActionResult> AnularVacaciones(
+        long idSolicitudVacaciones,
+        [FromBody] AnularVacacionesRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(
+            new AnularVacacionesAprobadasCommand(idSolicitudVacaciones, request.Motivo), cancellationToken);
         return HandleResult(result);
     }
 

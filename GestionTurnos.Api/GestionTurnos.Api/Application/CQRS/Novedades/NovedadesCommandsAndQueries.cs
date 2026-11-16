@@ -2,7 +2,9 @@ using FluentValidation;
 using GestionTurnos.Api.Application.Common.Security;
 using GestionTurnos.Api.Application.DTOs.Novedades;
 using GestionTurnos.Api.Application.Interfaces;
+using GestionTurnos.Api.Application.Services;
 using GestionTurnos.Api.Domain.Entities.Novedades;
+using GestionTurnos.Api.Domain.Entities.Organizacion;
 using GestionTurnos.Api.Domain.Enums;
 using GestionTurnos.Api.Domain.Interfaces;
 using GestionTurnos.Api.Domain.Shared;
@@ -265,7 +267,8 @@ public sealed record RegistrarNovedadAdminCommand(
     bool? Remunerado,
     bool? AfectaHoras,
     string? Observaciones,
-    string? UrlSoporte) : IRequest<Result<long>>;
+    string? UrlSoporte,
+    bool ConfirmarAnulacionTurnos = false) : IRequest<Result<long>>;
 
 public sealed class RegistrarNovedadAdminCommandValidator : AbstractValidator<RegistrarNovedadAdminCommand>
 {
@@ -279,20 +282,31 @@ public sealed class RegistrarNovedadAdminCommandValidator : AbstractValidator<Re
     }
 }
 
+/// <summary>
+/// Sección 12: registro directo de incapacidades y ausencias por el administrador. Nacen APROBADAS.
+/// Turnos que se cruzan: los futuros siguen la regla de CONFLICTO_BLOQUEA; los pasados o en curso no se anulan
+/// (quedan como turno sin asistencia explicado por la novedad). Si afecta horas, reliquida en la misma transacción.
+/// </summary>
 public sealed class RegistrarNovedadAdminCommandHandler : IRequestHandler<RegistrarNovedadAdminCommand, Result<long>>
 {
     private readonly GestionTurnosContext _context;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IParametroService _parametroService;
+    private readonly ILiquidacionHorasCalculator _liquidacionCalculator;
 
     public RegistrarNovedadAdminCommandHandler(
         GestionTurnosContext context,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IParametroService parametroService,
+        ILiquidacionHorasCalculator liquidacionCalculator)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
+        _parametroService = parametroService;
+        _liquidacionCalculator = liquidacionCalculator;
     }
 
     public async Task<Result<long>> Handle(RegistrarNovedadAdminCommand request, CancellationToken cancellationToken)
@@ -320,47 +334,80 @@ public sealed class RegistrarNovedadAdminCommandHandler : IRequestHandler<Regist
                 ErrorType.Failure));
         }
 
-        var ahora = DateTimeOffset.UtcNow;
-        var novedad = new Novedad
-        {
-            IdEmpleado = request.IdEmpleado,
-            CodTipoNovedad = codTipo,
-            Inicio = request.Inicio,
-            Fin = request.Fin,
-            Remunerado = request.Remunerado ?? tipoNovedad.RemuneradoDefecto,
-            AfectaHoras = request.AfectaHoras ?? tipoNovedad.AfectaHorasDefecto,
-            CodEstadoSolicitud = EstadosSolicitud.Aprobada,
-            Observaciones = string.IsNullOrWhiteSpace(request.Observaciones) ? null : request.Observaciones.Trim(),
-            UrlSoporte = string.IsNullOrWhiteSpace(request.UrlSoporte) ? null : request.UrlSoporte.Trim(),
-            RegistradoPor = adminId,
-            RegistradoEn = ahora,
-            ResueltoPor = adminId,
-            ResueltoEn = ahora
-        };
-
         try
         {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            // Mismo orden de bloqueo que la programación de turnos: primero el empleado.
+            var empleado = await _context.BloquearPorIdAsync<Empleado>(request.IdEmpleado, cancellationToken);
+            if (empleado is null || empleado.CodEstadoEmpleado != EstadosEmpleado.Activo)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure<long>(new Error(
+                    "Novedades.EmpleadoNoActivo",
+                    "Solo se pueden registrar novedades para empleados activos.",
+                    ErrorType.Failure));
+            }
+
+            var regla = await NovedadesComunes.AplicarReglaTurnosAsync(
+                _context, _parametroService, request.IdEmpleado, request.Inicio, request.Fin,
+                request.ConfirmarAnulacionTurnos, "Anulada por novedad registrada", cancellationToken);
+            if (regla.IsFailure)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure<long>(regla.Error);
+            }
+
+            var ahora = DateTimeOffset.UtcNow;
+            var novedad = new Novedad
+            {
+                IdEmpleado = request.IdEmpleado,
+                CodTipoNovedad = codTipo,
+                Inicio = request.Inicio,
+                Fin = request.Fin,
+                Remunerado = request.Remunerado ?? tipoNovedad.RemuneradoDefecto,
+                AfectaHoras = request.AfectaHoras ?? tipoNovedad.AfectaHorasDefecto,
+                CodEstadoSolicitud = EstadosSolicitud.Aprobada,
+                Observaciones = string.IsNullOrWhiteSpace(request.Observaciones) ? null : request.Observaciones.Trim(),
+                UrlSoporte = string.IsNullOrWhiteSpace(request.UrlSoporte) ? null : request.UrlSoporte.Trim(),
+                RegistradoPor = adminId,
+                RegistradoEn = ahora,
+                ResueltoPor = adminId,
+                ResueltoEn = ahora
+            };
+
             await _context.Novedades.AddAsync(novedad, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            if (novedad.AfectaHoras)
+            {
+                await NovedadesComunes.ReliquidarRegistrosAsync(
+                    _context, _liquidacionCalculator, novedad.IdEmpleado, novedad.Inicio, novedad.Fin, cancellationToken);
+            }
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
             return Result.Success(novedad.IdNovedad);
         }
         catch (Exception ex)
         {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
             return Result.Failure<long>(DatabaseErrorTranslator.Translate(ex));
         }
     }
 }
 
 /// <summary>
-/// Sección 4: Resolución administrativa de novedad (APROBADA o RECHAZADA).
-/// Evalúa CONFLICTO_BLOQUEA frente a turnos programados en el intervalo.
+/// Sección 12: resolución administrativa de novedad (APROBADA o RECHAZADA). Al aprobar se puede ajustar
+/// si es remunerada y si afecta horas; se aplica la regla de turnos y, si afecta horas, se reliquida.
 /// </summary>
 [RequirePermission(PermisosSistema.NovedadesAprobar)]
 public sealed record ResolverNovedadCommand(
     long IdNovedad,
     bool Aprobar,
     string? MotivoRechazo = null,
-    bool ConfirmarAnulacionTurnos = false) : IRequest<Result>;
+    bool ConfirmarAnulacionTurnos = false,
+    bool? Remunerado = null,
+    bool? AfectaHoras = null) : IRequest<Result>;
 
 public sealed class ResolverNovedadCommandValidator : AbstractValidator<ResolverNovedadCommand>
 {
@@ -380,17 +427,20 @@ public sealed class ResolverNovedadCommandHandler : IRequestHandler<ResolverNove
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
     private readonly IParametroService _parametroService;
+    private readonly ILiquidacionHorasCalculator _liquidacionCalculator;
 
     public ResolverNovedadCommandHandler(
         GestionTurnosContext context,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
-        IParametroService parametroService)
+        IParametroService parametroService,
+        ILiquidacionHorasCalculator liquidacionCalculator)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _parametroService = parametroService;
+        _liquidacionCalculator = liquidacionCalculator;
     }
 
     public async Task<Result> Handle(ResolverNovedadCommand request, CancellationToken cancellationToken)
@@ -401,13 +451,21 @@ public sealed class ResolverNovedadCommandHandler : IRequestHandler<ResolverNove
         {
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
-            var novedad = await _context.Novedades
-                .FirstOrDefaultAsync(
-                    n => n.IdNovedad == request.IdNovedad &&
-                         n.CodEstadoSolicitud == EstadosSolicitud.Pendiente,
-                    cancellationToken);
+            // Bloqueos: empleado y después la novedad.
+            var idEmpleado = await _context.Novedades
+                .AsNoTracking()
+                .Where(n => n.IdNovedad == request.IdNovedad)
+                .Select(n => (long?)n.IdEmpleado)
+                .FirstOrDefaultAsync(cancellationToken);
 
-            if (novedad is null)
+            Novedad? novedad = null;
+            if (idEmpleado.HasValue)
+            {
+                await _context.BloquearPorIdAsync<Empleado>(idEmpleado.Value, cancellationToken);
+                novedad = await _context.BloquearPorIdAsync<Novedad>(request.IdNovedad, cancellationToken);
+            }
+
+            if (novedad is null || novedad.CodEstadoSolicitud != EstadosSolicitud.Pendiente)
             {
                 await _unitOfWork.RollbackTransactionAsync(cancellationToken);
                 return Result.Failure(new Error(
@@ -418,55 +476,29 @@ public sealed class ResolverNovedadCommandHandler : IRequestHandler<ResolverNove
 
             if (request.Aprobar)
             {
-                var fechaInicioRef = DateOnly.FromDateTime(novedad.Inicio.UtcDateTime);
-                var fechaFinRef = DateOnly.FromDateTime(novedad.Fin.UtcDateTime);
-
-                var candidatos = await _context.Asignaciones
-                    .Where(a => a.IdEmpleado == novedad.IdEmpleado &&
-                                a.CodEstadoAsignacion != EstadosAsignacion.Anulada &&
-                                a.Fecha >= fechaInicioRef.AddDays(-1) &&
-                                a.Fecha <= fechaFinRef.AddDays(1))
-                    .ToListAsync(cancellationToken);
-
-                var turnosEnConflicto = candidatos
-                    .Where(a => a.Periodo.SeCruzaCon(novedad.Inicio, novedad.Fin))
-                    .ToList();
-
-                if (turnosEnConflicto.Count > 0)
+                var regla = await NovedadesComunes.AplicarReglaTurnosAsync(
+                    _context, _parametroService, novedad.IdEmpleado, novedad.Inicio, novedad.Fin,
+                    request.ConfirmarAnulacionTurnos, $"Anulada por novedad aprobada (#{novedad.IdNovedad})", cancellationToken);
+                if (regla.IsFailure)
                 {
-                    bool conflictoBloquea = await _parametroService.ObtenerBooleanoAsync(
-                        ParametrosCodigos.ConflictoBloquea, fechaInicioRef, cancellationToken);
-
-                    var fechasStr = string.Join(", ", turnosEnConflicto.Select(t => t.Fecha.ToString("yyyy-MM-dd")).Distinct());
-
-                    if (conflictoBloquea)
-                    {
-                        await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-                        return Result.Failure(new Error(
-                            "Novedades.ConflictoConTurnos",
-                            $"No se puede aprobar porque el empleado tiene turnos programados que se cruzan en las fechas: {fechasStr} (parámetro CONFLICTO_BLOQUEA activo).",
-                            ErrorType.Conflict));
-                    }
-
-                    if (!request.ConfirmarAnulacionTurnos)
-                    {
-                        await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-                        return Result.Failure(new Error(
-                            "Novedades.ConfirmacionRequerida",
-                            $"El empleado tiene turnos programados que se cruzan en las fechas: {fechasStr}. Confirme la aprobación para anular esas asignaciones.",
-                            ErrorType.Conflict));
-                    }
-
-                    foreach (var turno in turnosEnConflicto)
-                    {
-                        turno.CodEstadoAsignacion = EstadosAsignacion.Anulada;
-                    }
+                    await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                    return regla;
                 }
 
+                novedad.Remunerado = request.Remunerado ?? novedad.Remunerado;
+                novedad.AfectaHoras = request.AfectaHoras ?? novedad.AfectaHoras;
                 novedad.CodEstadoSolicitud = EstadosSolicitud.Aprobada;
                 novedad.ResueltoPor = adminId;
                 novedad.ResueltoEn = DateTimeOffset.UtcNow;
                 novedad.MotivoRechazo = null;
+
+                if (novedad.AfectaHoras)
+                {
+                    // Guardar primero: la liquidación lee las novedades APROBADAS desde la base.
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                    await NovedadesComunes.ReliquidarRegistrosAsync(
+                        _context, _liquidacionCalculator, novedad.IdEmpleado, novedad.Inicio, novedad.Fin, cancellationToken);
+                }
             }
             else
             {
@@ -487,21 +519,107 @@ public sealed class ResolverNovedadCommandHandler : IRequestHandler<ResolverNove
     }
 }
 
+/// <summary>
+/// Reglas comunes de novedades del administrador (sección 12).
+/// </summary>
+internal static class NovedadesComunes
+{
+    /// <summary>
+    /// Turnos que se cruzan con la novedad: los futuros (aún no inician) siguen la regla de CONFLICTO_BLOQUEA;
+    /// los pasados o en curso no se tocan y quedan como turno sin asistencia explicado por la novedad.
+    /// </summary>
+    public static async Task<Result> AplicarReglaTurnosAsync(
+        GestionTurnosContext context,
+        IParametroService parametroService,
+        long idEmpleado,
+        DateTimeOffset inicio,
+        DateTimeOffset fin,
+        bool confirmarAnulacion,
+        string observacionAnulacion,
+        CancellationToken cancellationToken)
+    {
+        var ahora = DateTimeOffset.UtcNow;
+        var turnos = await ConflictosTurnosNovedad.TurnosQueSeCruzanAsync(context, idEmpleado, inicio, fin, cancellationToken);
+        var futuros = turnos.Where(t => t.Periodo.Inicio > ahora).ToList();
+
+        return await ConflictosTurnosNovedad.AplicarReglaAsync(
+            context,
+            parametroService,
+            futuros,
+            DateOnly.FromDateTime(inicio.UtcDateTime),
+            confirmarAnulacion,
+            "Novedades",
+            observacionAnulacion,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Reliquida (sección 6.3) los registros cerrados del empleado que se cruzan con el intervalo de la novedad.
+    /// La novedad ya debe estar guardada en la transacción en curso.
+    /// </summary>
+    public static async Task ReliquidarRegistrosAsync(
+        GestionTurnosContext context,
+        ILiquidacionHorasCalculator calculator,
+        long idEmpleado,
+        DateTimeOffset inicio,
+        DateTimeOffset fin,
+        CancellationToken cancellationToken)
+    {
+        var idsRegistros = await context.RegistrosAsistencia
+            .AsNoTracking()
+            .Where(r => r.IdEmpleado == idEmpleado &&
+                        r.HoraSalida != null &&
+                        r.HoraEntrada < fin &&
+                        r.HoraSalida > inicio)
+            .Select(r => r.IdRegistro)
+            .ToListAsync(cancellationToken);
+
+        foreach (var idRegistro in idsRegistros)
+        {
+            await calculator.LiquidarRegistroAsync(idRegistro, cancellationToken);
+        }
+    }
+}
+
 [RequirePermission(PermisosSistema.VacacionesAprobar)]
 public sealed record ListarSolicitudesVacacionesAdminQuery(
     long? IdEmpleado = null,
     string? CodEstadoSolicitud = null,
     int PageNumber = 1,
-    int PageSize = 20) : IRequest<Result<PagedResult<SolicitudVacacionesDto>>>;
+    int PageSize = 20) : IRequest<Result<PagedResult<SolicitudVacacionesBandejaDto>>>;
 
+/// <summary>
+/// Valor de <c>CodEstadoSolicitud</c> para que las bandejas devuelvan todos los estados.
+/// Sin estado, las bandejas muestran solo las PENDIENTE (secciones 11 y 12).
+/// </summary>
+public static class FiltroBandeja
+{
+    public const string Todos = "TODOS";
+
+    public static string? Resolver(string? codEstado)
+    {
+        if (string.IsNullOrWhiteSpace(codEstado))
+        {
+            return EstadosSolicitud.Pendiente;
+        }
+
+        var estado = codEstado.Trim().ToUpperInvariant();
+        return estado == Todos ? null : estado;
+    }
+}
+
+/// <summary>
+/// Bandeja de solicitudes de vacaciones (sección 11) con el saldo disponible de cada empleado,
+/// leído siempre de novedades.v_saldo_vacaciones.
+/// </summary>
 public sealed class ListarSolicitudesVacacionesAdminQueryHandler
-    : IRequestHandler<ListarSolicitudesVacacionesAdminQuery, Result<PagedResult<SolicitudVacacionesDto>>>
+    : IRequestHandler<ListarSolicitudesVacacionesAdminQuery, Result<PagedResult<SolicitudVacacionesBandejaDto>>>
 {
     private readonly GestionTurnosContext _context;
 
     public ListarSolicitudesVacacionesAdminQueryHandler(GestionTurnosContext context) => _context = context;
 
-    public async Task<Result<PagedResult<SolicitudVacacionesDto>>> Handle(
+    public async Task<Result<PagedResult<SolicitudVacacionesBandejaDto>>> Handle(
         ListarSolicitudesVacacionesAdminQuery request,
         CancellationToken cancellationToken)
     {
@@ -514,9 +632,9 @@ public sealed class ListarSolicitudesVacacionesAdminQueryHandler
             query = query.Where(s => s.IdEmpleado == request.IdEmpleado.Value);
         }
 
-        if (!string.IsNullOrWhiteSpace(request.CodEstadoSolicitud))
+        var estado = FiltroBandeja.Resolver(request.CodEstadoSolicitud);
+        if (estado is not null)
         {
-            var estado = request.CodEstadoSolicitud.Trim().ToUpperInvariant();
             query = query.Where(s => s.CodEstadoSolicitud == estado);
         }
 
@@ -542,7 +660,23 @@ public sealed class ListarSolicitudesVacacionesAdminQueryHandler
                 s.MotivoRechazo))
             .ToListAsync(cancellationToken);
 
-        return Result.Success(new PagedResult<SolicitudVacacionesDto>(items, totalCount, pageNumber, pageSize));
+        var idsEmpleado = items.Select(i => i.IdEmpleado).Distinct().ToList();
+        var saldos = await _context.VistaSaldosVacaciones
+            .AsNoTracking()
+            .Where(v => idsEmpleado.Contains(v.IdEmpleado))
+            .ToDictionaryAsync(v => v.IdEmpleado, cancellationToken);
+
+        var bandeja = items
+            .Select(i =>
+            {
+                saldos.TryGetValue(i.IdEmpleado, out var saldo);
+                decimal disponibles = saldo?.DiasDisponibles ?? 0m;
+                decimal enSolicitud = saldo?.DiasEnSolicitud ?? 0m;
+                return new SolicitudVacacionesBandejaDto(i, disponibles, enSolicitud, disponibles - enSolicitud);
+            })
+            .ToList();
+
+        return Result.Success(new PagedResult<SolicitudVacacionesBandejaDto>(bandeja, totalCount, pageNumber, pageSize));
     }
 }
 
@@ -574,9 +708,9 @@ public sealed class ListarNovedadesAdminQueryHandler
             query = query.Where(n => n.IdEmpleado == request.IdEmpleado.Value);
         }
 
-        if (!string.IsNullOrWhiteSpace(request.CodEstadoSolicitud))
+        var estado = FiltroBandeja.Resolver(request.CodEstadoSolicitud);
+        if (estado is not null)
         {
-            var estado = request.CodEstadoSolicitud.Trim().ToUpperInvariant();
             query = query.Where(n => n.CodEstadoSolicitud == estado);
         }
 
