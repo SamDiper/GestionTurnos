@@ -1,0 +1,78 @@
+namespace GestionTurnos.Api.Application.DTOs.Turnos;
+
+public sealed record TurnoDto(
+    int IdTurno,
+    string Nombre,
+    TimeOnly HoraInicio,
+    TimeOnly HoraFin,
+    int MinutosDescanso,
+    bool CruzaMedianoche,
+    int DuracionMinutos,
+    string? Color,
+    bool Activo);
+
+public sealed record AsignacionTurnoDto(
+    long IdAsignacion,
+    long IdEmpleado,
+    string NombreEmpleado,
+    string NumeroDocumento,
+    int IdArea,
+    string NombreArea,
+    int IdTurno,
+    string NombreTurno,
+    string? ColorTurno,
+    DateOnly Fecha,
+    DateTimeOffset PeriodoInicio,
+    DateTimeOffset PeriodoFin,
+    string CodEstadoAsignacion,
+    string NombreEstadoAsignacion,
+    string? Observacion,
+    long CreadoPor,
+    DateTimeOffset CreadoEn);
+
+public sealed record DiaDescansoDto(
+    long IdDiaDescanso,
+    long IdEmpleado,
+    string NombreEmpleado,
+    DateOnly Fecha,
+    long CreadoPor,
+    DateTimeOffset CreadoEn);
+
+/// <summary>
+/// Evento del calendario unificado del empleado (Sección 3.4 - turnos.v_calendario).
+/// </summary>
+public sealed record EventoCalendarioEmpleadoDto(
+    string Tipo,
+    string Detalle,
+    DateTimeOffset Inicio,
+    DateTimeOffset Fin);
+
+/// <summary>
+/// Evento del calendario general administrativo (Sección 5 - RF-09).
+/// </summary>
+public sealed record EventoCalendarioGeneralDto(
+    long IdEmpleado,
+    string NombreEmpleado,
+    int IdArea,
+    string NombreArea,
+    string Tipo,
+    string Detalle,
+    DateTimeOffset Inicio,
+    DateTimeOffset Fin);
+
+/// <summary>
+/// Historial de turnos pasados del empleado (Sección 3.4: fecha &lt; current_date).
+/// </summary>
+public sealed record HistorialTurnoEmpleadoDto(
+    long IdAsignacion,
+    DateOnly Fecha,
+    int IdTurno,
+    string NombreTurno,
+    TimeOnly HoraInicio,
+    TimeOnly HoraFin,
+    int MinutosDescanso,
+    DateTimeOffset PeriodoInicio,
+    DateTimeOffset PeriodoFin,
+    string CodEstadoAsignacion,
+    string? Observacion);
+
