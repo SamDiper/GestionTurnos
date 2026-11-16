@@ -383,7 +383,7 @@ public sealed class RegistrarPeriodoVacacionalCommandHandler
         CancellationToken cancellationToken)
     {
         decimal dias = request.DiasOtorgados ?? await _parametroService.ObtenerDecimalAsync(
-            ParametrosCodigos.VacacionesDiasPorAnio, request.FechaInicio, 15m, cancellationToken);
+            ParametrosCodigos.VacacionesDiasPorAnio, request.FechaInicio, cancellationToken);
 
         var periodo = new PeriodoVacacional
         {
@@ -505,7 +505,7 @@ public sealed class ResolverSolicitudVacacionesCommandHandler
                 if (turnosEnConflicto.Count > 0)
                 {
                     bool conflictoBloquea = await _parametroService.ObtenerBooleanoAsync(
-                        ParametrosCodigos.ConflictoBloquea, solicitud.FechaInicio, true, cancellationToken);
+                        ParametrosCodigos.ConflictoBloquea, solicitud.FechaInicio, cancellationToken);
 
                     var fechasStr = string.Join(", ", turnosEnConflicto.Select(t => t.Fecha.ToString("yyyy-MM-dd")).Distinct());
 

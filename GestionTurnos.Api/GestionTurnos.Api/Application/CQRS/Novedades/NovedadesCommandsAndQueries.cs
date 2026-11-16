@@ -435,7 +435,7 @@ public sealed class ResolverNovedadCommandHandler : IRequestHandler<ResolverNove
                 if (turnosEnConflicto.Count > 0)
                 {
                     bool conflictoBloquea = await _parametroService.ObtenerBooleanoAsync(
-                        ParametrosCodigos.ConflictoBloquea, fechaInicioRef, true, cancellationToken);
+                        ParametrosCodigos.ConflictoBloquea, fechaInicioRef, cancellationToken);
 
                     var fechasStr = string.Join(", ", turnosEnConflicto.Select(t => t.Fecha.ToString("yyyy-MM-dd")).Distinct());
 

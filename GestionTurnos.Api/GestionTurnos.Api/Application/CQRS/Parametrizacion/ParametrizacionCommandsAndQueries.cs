@@ -1,5 +1,6 @@
 using System.Globalization;
 using FluentValidation;
+using GestionTurnos.Api.Application.Common;
 using GestionTurnos.Api.Application.Common.Security;
 using GestionTurnos.Api.Application.DTOs.Parametrizacion;
 using GestionTurnos.Api.Domain.Entities.Parametrizacion;
@@ -9,6 +10,7 @@ using GestionTurnos.Api.Domain.Shared;
 using GestionTurnos.Api.Infrastructure.Persistence;
 using GestionTurnos.Api.Infrastructure.Persistence.Context;
 using MediatR;
+using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 
 namespace GestionTurnos.Api.Application.CQRS.Parametrizacion;
@@ -481,6 +483,51 @@ public sealed class GuardarDiaFestivoCommandHandler : IRequestHandler<GuardarDia
     }
 }
 
+/// <summary>
+/// Borra un día festivo. Es la única entidad de negocio con borrado físico (Sección 13); el disparador
+/// no audita esta tabla y el festivo no tiene historial que conservar.
+/// </summary>
+[RequirePermission(PermisosSistema.ParametrosEditar)]
+public sealed record EliminarDiaFestivoCommand(DateOnly Fecha) : IRequest<Result>;
+
+public sealed class EliminarDiaFestivoCommandHandler : IRequestHandler<EliminarDiaFestivoCommand, Result>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public EliminarDiaFestivoCommandHandler(GestionTurnosContext context, IUnitOfWork unitOfWork)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<Result> Handle(EliminarDiaFestivoCommand request, CancellationToken cancellationToken)
+    {
+        var festivo = await _context.DiasFestivos
+            .FirstOrDefaultAsync(d => d.Fecha == request.Fecha, cancellationToken);
+
+        if (festivo is null)
+        {
+            return Result.Failure(new Error(
+                "Parametrizacion.FestivoNoEncontrado",
+                "No hay un día festivo registrado en esa fecha.",
+                ErrorType.NotFound));
+        }
+
+        _context.DiasFestivos.Remove(festivo);
+
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure(DatabaseErrorTranslator.Translate(ex));
+        }
+    }
+}
+
 // =====================================================================
 // 6.2 LEER Y CAMBIAR PARÁMETROS (RG-10 - permiso: parametros.editar)
 // =====================================================================
@@ -493,14 +540,20 @@ public sealed class ListarParametrosQueryHandler
     : IRequestHandler<ListarParametrosQuery, Result<IReadOnlyList<ParametroDto>>>
 {
     private readonly GestionTurnosContext _context;
+    private readonly IConfiguration _configuration;
 
-    public ListarParametrosQueryHandler(GestionTurnosContext context) => _context = context;
+    public ListarParametrosQueryHandler(GestionTurnosContext context, IConfiguration configuration)
+    {
+        _context = context;
+        _configuration = configuration;
+    }
 
     public async Task<Result<IReadOnlyList<ParametroDto>>> Handle(
         ListarParametrosQuery request,
         CancellationToken cancellationToken)
     {
-        var fecha = request.FechaReferencia ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        // "Hoy" en la zona horaria de la empresa: en UTC, después de las 19:00 de Bogotá ya sería mañana.
+        var fecha = request.FechaReferencia ?? TimeZoneHelper.GetCurrentDateInEmpresaTimeZone(_configuration);
 
         var parametros = await _context.Parametros
             .AsNoTracking()
@@ -625,7 +678,7 @@ public sealed class CambiarValorParametroCommandHandler : IRequestHandler<Cambia
                 ErrorType.Conflict));
         }
 
-        if (!EsValorValidoSegunTipo(parametro.TipoDato, nuevoValor))
+        if (!ConversorParametros.EsValido(parametro.TipoDato, nuevoValor))
         {
             return Result.Failure<long>(new Error(
                 "Parametrizacion.TipoDatoInvalido",
@@ -636,6 +689,10 @@ public sealed class CambiarValorParametroCommandHandler : IRequestHandler<Cambia
         try
         {
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            // Bloquea el parámetro: dos cambios simultáneos no pueden cerrar la misma vigencia
+            // ni dejar vigencias cruzadas (en PostgreSQL lo garantiza además la restricción de exclusión, 23P01).
+            await _context.BloquearPorIdAsync<Parametro>(codigo, cancellationToken);
 
             // Buscar la fila vigente abierta o que cubra la fecha de inicio de la nueva vigencia
             var vigenteAbierta = await _context.ParametroValores
@@ -678,19 +735,6 @@ public sealed class CambiarValorParametroCommandHandler : IRequestHandler<Cambia
             await _unitOfWork.RollbackTransactionAsync(cancellationToken);
             return Result.Failure<long>(DatabaseErrorTranslator.Translate(ex));
         }
-    }
-
-    private static bool EsValorValidoSegunTipo(string tipoDato, string valor)
-    {
-        return tipoDato.ToUpperInvariant() switch
-        {
-            TiposDatoParametro.Entero => int.TryParse(valor, NumberStyles.Integer, CultureInfo.InvariantCulture, out _),
-            TiposDatoParametro.Decimal => decimal.TryParse(valor, NumberStyles.Number, CultureInfo.InvariantCulture, out _),
-            TiposDatoParametro.Booleano => bool.TryParse(valor, out _) || valor is "1" or "0",
-            TiposDatoParametro.Hora => TimeOnly.TryParse(valor, CultureInfo.InvariantCulture, out _),
-            TiposDatoParametro.Texto => !string.IsNullOrWhiteSpace(valor),
-            _ => true
-        };
     }
 }
 

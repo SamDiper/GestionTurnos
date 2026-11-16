@@ -44,9 +44,9 @@ public sealed class LiquidacionHorasCalculator : ILiquidacionHorasCalculator
 
         // Lectura de parámetros vigentes en la fecha del turno (Sección 6.2 y 6.3)
         _ = await _parametroService.ObtenerHoraAsync(
-            ParametrosCodigos.HoraInicioNocturna, fechaReferencia, new TimeOnly(19, 0), cancellationToken);
+            ParametrosCodigos.HoraInicioNocturna, fechaReferencia, cancellationToken);
         _ = await _parametroService.ObtenerHoraAsync(
-            ParametrosCodigos.HoraFinNocturna, fechaReferencia, new TimeOnly(6, 0), cancellationToken);
+            ParametrosCodigos.HoraFinNocturna, fechaReferencia, cancellationToken);
 
         int minutosBrutos = (int)Math.Round((salida - entrada).TotalMinutes);
         int minutosDescanso = registro.Asignacion?.Turno.MinutosDescanso ?? 0;

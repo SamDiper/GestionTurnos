@@ -1,3 +1,4 @@
+using GestionTurnos.Api.Application.Common;
 using System.Data.Common;
 using GestionTurnos.Api.Domain.Shared;
 using Microsoft.Data.SqlClient;
@@ -13,6 +14,13 @@ public static class DatabaseErrorTranslator
 {
     public static Error Translate(Exception exception)
     {
+        // Los handlers envuelven todo en try/catch y pasan la excepción por aquí: un parámetro sin
+        // configurar debe llegar al usuario con su mensaje, no como "error de base de datos".
+        if (exception is ParametroNoConfiguradoException parametroEx)
+        {
+            return ParametroNoConfigurado(parametroEx);
+        }
+
         if (TryTranslate(exception, out var error) && error is not null)
         {
             return error;
@@ -24,9 +32,31 @@ public static class DatabaseErrorTranslator
             ErrorType.Failure);
     }
 
+    private static readonly (string Fragmento, string Codigo, string Mensaje)[] NombresUnicos =
+    {
+        ("area_id_sucursal_nombre", "Organizacion.AreaNombreDuplicado", "Ya existe un área con ese nombre en la sucursal."),
+        ("sucursal_nombre", "Organizacion.SucursalNombreDuplicado", "Ya existe una sucursal con ese nombre."),
+        ("cargo_nombre", "Organizacion.CargoNombreDuplicado", "Ya existe un cargo con ese nombre."),
+        ("tipo_documento_nombre", "Parametrizacion.NombreDuplicado", "Ya existe un tipo de documento con ese nombre."),
+        ("tipo_contrato_nombre", "Parametrizacion.NombreDuplicado", "Ya existe un tipo de contrato con ese nombre."),
+        ("tipo_novedad_nombre", "Parametrizacion.NombreDuplicado", "Ya existe un tipo de novedad con ese nombre."),
+        ("categoria_hora_nombre", "Parametrizacion.NombreDuplicado", "Ya existe una categoría de hora con ese nombre.")
+    };
+
+    public static Error ParametroNoConfigurado(ParametroNoConfiguradoException exception) => new(
+        "Parametrizacion.ParametroNoConfigurado",
+        exception.Message,
+        ErrorType.Conflict);
+
     public static bool TryTranslate(Exception exception, out Error? translatedError)
     {
         translatedError = null;
+
+        if (exception is ParametroNoConfiguradoException parametroEx)
+        {
+            translatedError = ParametroNoConfigurado(parametroEx);
+            return true;
+        }
 
         var dbException = FindDbException(exception);
         if (dbException is null)
@@ -236,6 +266,24 @@ public static class DatabaseErrorTranslator
             return new Error(
                 "Seguridad.RolNombreDuplicado",
                 "Ya existe un rol con ese nombre.",
+                ErrorType.Conflict);
+        }
+
+        // Nombres únicos de organización y catálogos (Fase 3). El fragmento coincide con el nombre de la
+        // restricción en PostgreSQL (<tabla>_nombre_key) y del índice en SQL Server (IX_<tabla>_nombre).
+        foreach (var (fragmento, codigo, mensaje) in NombresUnicos)
+        {
+            if (combined.Contains(fragmento, StringComparison.OrdinalIgnoreCase))
+            {
+                return new Error(codigo, mensaje, ErrorType.Conflict);
+            }
+        }
+
+        if (combined.Contains("dia_festivo", StringComparison.OrdinalIgnoreCase))
+        {
+            return new Error(
+                "Parametrizacion.FestivoDuplicado",
+                "Ya existe un día festivo registrado en esa fecha.",
                 ErrorType.Conflict);
         }
 

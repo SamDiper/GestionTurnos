@@ -3,6 +3,7 @@ using GestionTurnos.Api.Application.Common.Security;
 using GestionTurnos.Api.Application.DTOs.Organizacion;
 using GestionTurnos.Api.Domain.Entities.Organizacion;
 using GestionTurnos.Api.Domain.Enums;
+using GestionTurnos.Api.Domain.Errors.Organizacion;
 using GestionTurnos.Api.Domain.Interfaces;
 using GestionTurnos.Api.Domain.Shared;
 using GestionTurnos.Api.Infrastructure.Persistence;
@@ -76,14 +77,48 @@ public sealed class GuardarSucursalCommandHandler : IRequestHandler<GuardarSucur
 
     public async Task<Result<int>> Handle(GuardarSucursalCommand request, CancellationToken cancellationToken)
     {
+        try
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            var resultado = await GuardarAsync(request, cancellationToken);
+            if (resultado.IsFailure)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return resultado;
+            }
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+            return resultado;
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+            return Result.Failure<int>(DatabaseErrorTranslator.Translate(ex));
+        }
+    }
+
+    private async Task<Result<int>> GuardarAsync(GuardarSucursalCommand request, CancellationToken cancellationToken)
+    {
         Sucursal sucursal;
         if (request.IdSucursal.HasValue && request.IdSucursal.Value > 0)
         {
-            var existente = await _context.Sucursales
-                .FirstOrDefaultAsync(s => s.IdSucursal == request.IdSucursal.Value, cancellationToken);
+            // Bloqueo de la fila: una nueva área no puede asignarse a la sucursal mientras se desactiva.
+            var existente = await _context.BloquearPorIdAsync<Sucursal>(request.IdSucursal.Value, cancellationToken);
             if (existente is null)
             {
                 return Result.Failure<int>(new Error("Organizacion.SucursalNoEncontrada", "La sucursal no fue encontrada.", ErrorType.NotFound));
+            }
+
+            if (existente.Activo && !request.Activo)
+            {
+                bool tieneAreasActivas = await _context.Areas
+                    .AsNoTracking()
+                    .AnyAsync(a => a.IdSucursal == existente.IdSucursal && a.Activo, cancellationToken);
+                if (tieneAreasActivas)
+                {
+                    return Result.Failure<int>(OrganizacionErrors.SucursalConAreasActivas);
+                }
             }
 
             existente.Nombre = request.Nombre.Trim();
@@ -104,15 +139,8 @@ public sealed class GuardarSucursalCommandHandler : IRequestHandler<GuardarSucur
             await _context.Sucursales.AddAsync(sucursal, cancellationToken);
         }
 
-        try
-        {
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return Result.Success(sucursal.IdSucursal);
-        }
-        catch (Exception ex)
-        {
-            return Result.Failure<int>(DatabaseErrorTranslator.Translate(ex));
-        }
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Result.Success(sucursal.IdSucursal);
     }
 }
 
@@ -184,26 +212,68 @@ public sealed class GuardarAreaCommandHandler : IRequestHandler<GuardarAreaComma
 
     public async Task<Result<int>> Handle(GuardarAreaCommand request, CancellationToken cancellationToken)
     {
-        bool sucursalActiva = await _context.Sucursales
-            .AsNoTracking()
-            .AnyAsync(s => s.IdSucursal == request.IdSucursal && s.Activo, cancellationToken);
+        try
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
-        if (!sucursalActiva)
+            var resultado = await GuardarAsync(request, cancellationToken);
+            if (resultado.IsFailure)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return resultado;
+            }
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+            return resultado;
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+            return Result.Failure<int>(DatabaseErrorTranslator.Translate(ex));
+        }
+    }
+
+    private async Task<Result<int>> GuardarAsync(GuardarAreaCommand request, CancellationToken cancellationToken)
+    {
+        // Orden de bloqueo: sucursal y después área (el mismo que usa la desactivación de sucursal).
+        // Un área activa exige su sucursal activa; un área que queda inactiva puede quedar en una sucursal inactiva.
+        if (request.Activo)
+        {
+            var sucursal = await _context.BloquearPorIdAsync<Sucursal>(request.IdSucursal, cancellationToken);
+            if (sucursal is null || !sucursal.Activo)
+            {
+                return Result.Failure<int>(new Error(
+                    "Organizacion.SucursalNoEncontrada",
+                    "La sucursal seleccionada no existe o fue desactivada.",
+                    ErrorType.NotFound));
+            }
+        }
+        else if (!await _context.Sucursales.AsNoTracking().AnyAsync(s => s.IdSucursal == request.IdSucursal, cancellationToken))
         {
             return Result.Failure<int>(new Error(
                 "Organizacion.SucursalNoEncontrada",
-                "La sucursal seleccionada no existe o fue desactivada.",
+                "La sucursal seleccionada no existe.",
                 ErrorType.NotFound));
         }
 
         Area area;
         if (request.IdArea.HasValue && request.IdArea.Value > 0)
         {
-            var existente = await _context.Areas
-                .FirstOrDefaultAsync(a => a.IdArea == request.IdArea.Value, cancellationToken);
+            var existente = await _context.BloquearPorIdAsync<Area>(request.IdArea.Value, cancellationToken);
             if (existente is null)
             {
                 return Result.Failure<int>(new Error("Organizacion.AreaNoEncontrada", "El área no fue encontrada.", ErrorType.NotFound));
+            }
+
+            if (existente.Activo && !request.Activo)
+            {
+                bool tieneEmpleadosActivos = await _context.Empleados
+                    .AsNoTracking()
+                    .AnyAsync(e => e.IdArea == existente.IdArea && e.CodEstadoEmpleado == EstadosEmpleado.Activo, cancellationToken);
+                if (tieneEmpleadosActivos)
+                {
+                    return Result.Failure<int>(OrganizacionErrors.AreaConEmpleadosActivos);
+                }
             }
 
             existente.IdSucursal = request.IdSucursal;
@@ -222,15 +292,8 @@ public sealed class GuardarAreaCommandHandler : IRequestHandler<GuardarAreaComma
             await _context.Areas.AddAsync(area, cancellationToken);
         }
 
-        try
-        {
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return Result.Success(area.IdArea);
-        }
-        catch (Exception ex)
-        {
-            return Result.Failure<int>(DatabaseErrorTranslator.Translate(ex));
-        }
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Result.Success(area.IdArea);
     }
 }
 
@@ -294,14 +357,48 @@ public sealed class GuardarCargoCommandHandler : IRequestHandler<GuardarCargoCom
 
     public async Task<Result<int>> Handle(GuardarCargoCommand request, CancellationToken cancellationToken)
     {
+        try
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            var resultado = await GuardarAsync(request, cancellationToken);
+            if (resultado.IsFailure)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return resultado;
+            }
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+            return resultado;
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+            return Result.Failure<int>(DatabaseErrorTranslator.Translate(ex));
+        }
+    }
+
+    private async Task<Result<int>> GuardarAsync(GuardarCargoCommand request, CancellationToken cancellationToken)
+    {
         Cargo cargo;
         if (request.IdCargo.HasValue && request.IdCargo.Value > 0)
         {
-            var existente = await _context.Cargos
-                .FirstOrDefaultAsync(c => c.IdCargo == request.IdCargo.Value, cancellationToken);
+            // Bloqueo de la fila: ningún empleado puede asignarse al cargo mientras se desactiva.
+            var existente = await _context.BloquearPorIdAsync<Cargo>(request.IdCargo.Value, cancellationToken);
             if (existente is null)
             {
                 return Result.Failure<int>(new Error("Organizacion.CargoNoEncontrado", "El cargo no fue encontrado.", ErrorType.NotFound));
+            }
+
+            if (existente.Activo && !request.Activo)
+            {
+                bool tieneEmpleadosActivos = await _context.Empleados
+                    .AsNoTracking()
+                    .AnyAsync(e => e.IdCargo == existente.IdCargo && e.CodEstadoEmpleado == EstadosEmpleado.Activo, cancellationToken);
+                if (tieneEmpleadosActivos)
+                {
+                    return Result.Failure<int>(OrganizacionErrors.CargoConEmpleadosActivos);
+                }
             }
 
             existente.Nombre = request.Nombre.Trim();
@@ -318,15 +415,8 @@ public sealed class GuardarCargoCommandHandler : IRequestHandler<GuardarCargoCom
             await _context.Cargos.AddAsync(cargo, cancellationToken);
         }
 
-        try
-        {
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return Result.Success(cargo.IdCargo);
-        }
-        catch (Exception ex)
-        {
-            return Result.Failure<int>(DatabaseErrorTranslator.Translate(ex));
-        }
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Result.Success(cargo.IdCargo);
     }
 }
 
