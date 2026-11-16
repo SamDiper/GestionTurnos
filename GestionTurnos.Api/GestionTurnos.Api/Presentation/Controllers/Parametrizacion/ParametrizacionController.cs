@@ -126,6 +126,18 @@ public sealed class ParametrizacionController : BaseApiController
         return HandleResult(result);
     }
 
+    /// <summary>
+    /// Borra un día festivo (única entidad de negocio que se borra físicamente). Fecha en formato yyyy-MM-dd.
+    /// </summary>
+    [HttpDelete("dias-festivos/{fecha}")]
+    public async Task<IActionResult> EliminarDiaFestivo(
+        DateOnly fecha,
+        CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(new EliminarDiaFestivoCommand(fecha), cancellationToken);
+        return HandleResult(result);
+    }
+
     [HttpGet("parametros")]
     public async Task<IActionResult> ListarParametros(
         [FromQuery] DateOnly? fechaReferencia,

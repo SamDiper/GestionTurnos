@@ -1,5 +1,6 @@
 using GestionTurnos.Api.Application.Interfaces;
 using GestionTurnos.Api.Domain.Entities.Asistencia;
+using GestionTurnos.Api.Domain.Entities.Parametrizacion;
 using GestionTurnos.Api.Domain.Entities.Seguridad;
 using GestionTurnos.Api.Domain.Interfaces;
 using GestionTurnos.Api.Domain.Shared;
@@ -187,7 +188,8 @@ public class UnitOfWork : IUnitOfWork
 
     /// <summary>
     /// Regla Sección 1 y RG-06: No usar DELETE en tablas de negocio.
-    /// Única excepción permitida: asistencia.detalle_horas al reliquidar (Sección 6.3) y seguridad.rol_permiso.
+    /// Excepciones permitidas: asistencia.detalle_horas al reliquidar (Sección 6.3), seguridad.rol_permiso
+    /// y parametrizacion.dia_festivo (los festivos se crean, editan y borran - Sección 13).
     /// </summary>
     private void ValidateNoPhysicalDeletesOnBusinessTables()
     {
@@ -195,7 +197,8 @@ public class UnitOfWork : IUnitOfWork
             .Entries()
             .Where(e => e.State == EntityState.Deleted &&
                         e.Entity is not DetalleHoras &&
-                        e.Entity is not RolPermiso)
+                        e.Entity is not RolPermiso &&
+                        e.Entity is not DiaFestivo)
             .ToList();
 
         if (forbiddenDeletes.Count > 0)

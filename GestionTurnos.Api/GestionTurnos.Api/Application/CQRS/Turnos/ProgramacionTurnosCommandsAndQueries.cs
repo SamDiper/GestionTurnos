@@ -212,11 +212,11 @@ public sealed class ProgramarTurnosCommandHandler
         // 5. Validar parámetros vigentes en la fecha del turno:
         //    DESCANSO_MIN_ENTRE_TURNOS, JORNADA_MAX_HORAS_DIA, JORNADA_MAX_HORAS_SEMANA (Sección 6.1)
         decimal descansoMinHoras = await _parametroService.ObtenerDecimalAsync(
-            ParametrosCodigos.DescansoMinEntreTurnos, fecha, 12m, cancellationToken);
+            ParametrosCodigos.DescansoMinEntreTurnos, fecha, cancellationToken);
         decimal jornadaMaxDiaHoras = await _parametroService.ObtenerDecimalAsync(
-            ParametrosCodigos.JornadaMaxHorasDia, fecha, 10m, cancellationToken);
+            ParametrosCodigos.JornadaMaxHorasDia, fecha, cancellationToken);
         decimal jornadaMaxSemanaHoras = await _parametroService.ObtenerDecimalAsync(
-            ParametrosCodigos.JornadaMaxHorasSemana, fecha, 44m, cancellationToken);
+            ParametrosCodigos.JornadaMaxHorasSemana, fecha, cancellationToken);
 
         // Calcular lunes y domingo de la semana de 'fecha'
         int diffLunes = ((int)fecha.DayOfWeek + 6) % 7;
