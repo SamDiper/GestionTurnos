@@ -71,6 +71,13 @@ public class GestionTurnosContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(GestionTurnosContext).Assembly);
+
+        // Tipos nativos de PostgreSQL (tstzrange, jsonb, inet) y timestamptz en UTC.
+        if (Database.IsNpgsql())
+        {
+            PostgreSqlModelConfiguration.Aplicar(modelBuilder);
+        }
+
         base.OnModelCreating(modelBuilder);
     }
 }
