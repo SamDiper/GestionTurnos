@@ -92,19 +92,3 @@ public static class TiposDatoParametro
     public const string Booleano = "BOOLEANO";
     public const string Hora = "HORA";
 }
-
-public static class PermisosSistema
-{
-    public const string UsuariosGestionar = "usuarios.gestionar";
-    public const string EmpleadosGestionar = "empleados.gestionar";
-    public const string TurnosGestionar = "turnos.gestionar";
-    public const string TurnosProgramar = "turnos.programar";
-    public const string AsistenciaRegistrarManual = "asistencia.registrar_manual";
-    public const string VacacionesAprobar = "vacaciones.aprobar";
-    public const string NovedadesAprobar = "novedades.aprobar";
-    public const string RegistrosAprobar = "registros.aprobar";
-    public const string ParametrosEditar = "parametros.editar";
-    public const string AuditoriaConsultar = "auditoria.consultar";
-    public const string ReportesConsultar = "reportes.consultar";
-}
-

@@ -45,7 +45,7 @@ public sealed class ListarSucursalesQueryHandler
     }
 }
 
-[RequirePermission(PermisosSistema.EmpleadosGestionar)]
+[RequirePermission(PermisosSistema.OrganizacionGestionar)]
 public sealed record GuardarSucursalCommand(
     int? IdSucursal,
     string Nombre,
@@ -155,7 +155,7 @@ public sealed class ListarAreasQueryHandler
     }
 }
 
-[RequirePermission(PermisosSistema.EmpleadosGestionar)]
+[RequirePermission(PermisosSistema.OrganizacionGestionar)]
 public sealed record GuardarAreaCommand(
     int? IdArea,
     int IdSucursal,
@@ -267,7 +267,7 @@ public sealed class ListarCargosQueryHandler
     }
 }
 
-[RequirePermission(PermisosSistema.EmpleadosGestionar)]
+[RequirePermission(PermisosSistema.OrganizacionGestionar)]
 public sealed record GuardarCargoCommand(
     int? IdCargo,
     string Nombre,

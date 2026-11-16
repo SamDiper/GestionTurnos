@@ -3,6 +3,7 @@ using GestionTurnos.Api.Application.Extensions;
 using GestionTurnos.Api.Infrastructure.Extensions;
 using GestionTurnos.Api.Infrastructure.Logging;
 using GestionTurnos.Api.Infrastructure.Persistence.Context;
+using GestionTurnos.Api.Infrastructure.Persistence.Seed;
 using GestionTurnos.Api.Presentation.Extensions;
 using GestionTurnos.Api.Presentation.Middlewares;
 using Microsoft.AspNetCore.DataProtection;
@@ -56,6 +57,14 @@ builder.Services
     .AddDbContextCheck<GestionTurnosContext>();
 
 var app = builder.Build();
+
+// Datos iniciales por línea de comandos (sin endpoint): dotnet run -- seed-admin
+if (args.Contains(AdministradorInicialSeeder.ComandoCli, StringComparer.OrdinalIgnoreCase))
+{
+    Environment.ExitCode = await AdministradorInicialSeeder.RunAsync(app.Services);
+    await Log.CloseAndFlushAsync();
+    return;
+}
 
 // 7. Pipeline HTTP
 app.UseExceptionHandler();
