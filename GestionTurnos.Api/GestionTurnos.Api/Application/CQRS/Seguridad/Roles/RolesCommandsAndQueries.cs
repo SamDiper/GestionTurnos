@@ -203,20 +203,7 @@ public sealed record InicializarPermisosSistemaCommand : IRequest<Result<IReadOn
 public sealed class InicializarPermisosSistemaCommandHandler
     : IRequestHandler<InicializarPermisosSistemaCommand, Result<IReadOnlyList<PermisoDto>>>
 {
-    private static readonly (string Codigo, string Descripcion)[] CatalogoPermisos =
-    [
-        (PermisosSistema.UsuariosGestionar, "Crear, editar y gestionar usuarios, roles y permisos"),
-        (PermisosSistema.EmpleadosGestionar, "Crear, editar y desactivar empleados y estructura organizacional"),
-        (PermisosSistema.TurnosGestionar, "Crear y configurar catálogo de tipos de turno"),
-        (PermisosSistema.TurnosProgramar, "Programar, modificar, publicar y anular asignaciones de turnos y descansos"),
-        (PermisosSistema.AsistenciaRegistrarManual, "Registrar o corregir entradas y salidas de asistencia manualmente"),
-        (PermisosSistema.VacacionesAprobar, "Aprobar o rechazar solicitudes de vacaciones y registrar períodos vacacionales"),
-        (PermisosSistema.NovedadesAprobar, "Aprobar o rechazar permisos, incapacidades, calamidades y registrar ausencias"),
-        (PermisosSistema.RegistrosAprobar, "Aprobar o rechazar solicitudes de registro de nuevos empleados"),
-        (PermisosSistema.ParametrosEditar, "Modificar valores de reglas de negocio y catálogos en parametrización"),
-        (PermisosSistema.AuditoriaConsultar, "Consultar la bitácora de auditoría de negocio"),
-        (PermisosSistema.ReportesConsultar, "Consultar reportes operativos y consolidados de turnos y asistencia")
-    ];
+    private static readonly IReadOnlyList<(string Codigo, string Descripcion)> CatalogoPermisos = PermisosSistema.Catalogo;
 
     private readonly GestionTurnosContext _context;
     private readonly IUnitOfWork _unitOfWork;
