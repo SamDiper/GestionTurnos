@@ -3,6 +3,7 @@ using GestionTurnos.Api.Domain.Interfaces;
 using GestionTurnos.Api.Infrastructure.Identity;
 using GestionTurnos.Api.Infrastructure.Persistence;
 using GestionTurnos.Api.Infrastructure.Persistence.Context;
+using GestionTurnos.Api.Infrastructure.Persistence.Interceptors;
 using GestionTurnos.Api.Infrastructure.Persistence.Repositories;
 using GestionTurnos.Api.Infrastructure.Security;
 using GestionTurnos.Api.Infrastructure.Services;
@@ -19,9 +20,13 @@ public static class InfrastructureServiceCollectionExtensions
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection");
 
-        services.AddDbContext<GestionTurnosContext>(options =>
+        services.AddSingleton<SessionAndTimeZoneInterceptor>();
+
+        services.AddDbContext<GestionTurnosContext>((sp, options) =>
         {
-            options.UseSqlServer(connectionString);
+            var interceptor = sp.GetRequiredService<SessionAndTimeZoneInterceptor>();
+            options.UseSqlServer(connectionString)
+                   .AddInterceptors(interceptor);
         });
 
         // Contexto aislado para persistencia de DataProtection en SQL Server
@@ -36,10 +41,15 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Seguridad
         services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
+        services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 
-        // Contexto e Identidad
+        // Contexto e Identidad (incluye resolución obligatoria de id_empleado activo desde BD)
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<IEmpleadoSesionService, EmpleadoSesionService>();
+
+        // Parametrización y Reglas de Negocio
+        services.AddScoped<IParametroService, ParametroService>();
 
         // Generación de Documentos PDF y Renderizado de Plantillas
         services.AddSingleton(typeof(WkHtmlToPdfDotNet.Contracts.IConverter), new WkHtmlToPdfDotNet.SynchronizedConverter(new WkHtmlToPdfDotNet.PdfTools()));

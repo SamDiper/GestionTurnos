@@ -10,9 +10,24 @@ namespace GestionTurnos.Api.Domain.Interfaces;
 public interface IGenericRepository<T> where T : class
 {
     /// <summary>
-    /// Obtiene una entidad por su identificador.
+    /// Obtiene una entidad por su identificador entero (32 bits).
     /// </summary>
     Task<T?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Obtiene una entidad por su identificador largo (64 bits / bigint).
+    /// </summary>
+    Task<T?> GetByIdAsync(long id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Obtiene una entidad de catálogo por su código cadena (cod_*).
+    /// </summary>
+    Task<T?> GetByIdAsync(string code, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Obtiene la primera entidad que cumple con el criterio o nulo.
+    /// </summary>
+    Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> expression, bool asNoTracking = false, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Obtiene todas las entidades. 
