@@ -37,6 +37,7 @@ public static class DatabaseErrorTranslator
         ("area_id_sucursal_nombre", "Organizacion.AreaNombreDuplicado", "Ya existe un área con ese nombre en la sucursal."),
         ("sucursal_nombre", "Organizacion.SucursalNombreDuplicado", "Ya existe una sucursal con ese nombre."),
         ("cargo_nombre", "Organizacion.CargoNombreDuplicado", "Ya existe un cargo con ese nombre."),
+        ("turno_nombre", "Turnos.TurnoNombreDuplicado", "Ya existe un tipo de turno con ese nombre."),
         ("tipo_documento_nombre", "Parametrizacion.NombreDuplicado", "Ya existe un tipo de documento con ese nombre."),
         ("tipo_contrato_nombre", "Parametrizacion.NombreDuplicado", "Ya existe un tipo de contrato con ese nombre."),
         ("tipo_novedad_nombre", "Parametrizacion.NombreDuplicado", "Ya existe un tipo de novedad con ese nombre."),

@@ -99,3 +99,47 @@ public sealed record SolicitudCambioTurnoDto(
     DateTimeOffset? ResueltoEn,
     string? MotivoRechazo);
 
+
+/// <summary>
+/// Conflicto encontrado al revisar una asignación (sección 9.1).
+/// <c>Bloquea</c> es siempre verdadero para cruces, vacaciones, novedades y descansos; para descanso mínimo
+/// y jornada máxima depende del parámetro CONFLICTO_BLOQUEA (si es falso, es solo una advertencia).
+/// </summary>
+public sealed record ConflictoTurnoDto(
+    string Tipo,
+    string Mensaje,
+    bool Bloquea);
+
+/// <summary>
+/// Resultado de la revisión previa de conflictos de una asignación (sección 9.1).
+/// </summary>
+public sealed record RevisionConflictosTurnoDto(
+    long IdEmpleado,
+    int IdTurno,
+    string NombreTurno,
+    DateOnly Fecha,
+    DateTimeOffset PeriodoInicio,
+    DateTimeOffset PeriodoFin,
+    bool PuedeAsignarse,
+    IReadOnlyList<ConflictoTurnoDto> Conflictos);
+
+/// <summary>
+/// Turno y periodo de una asignación, para mostrar el cambio actual contra nuevo (sección 9.4).
+/// </summary>
+public sealed record DatosAsignacionDto(
+    int IdTurno,
+    string NombreTurno,
+    DateOnly Fecha,
+    DateTimeOffset PeriodoInicio,
+    DateTimeOffset PeriodoFin);
+
+/// <summary>
+/// Vista previa de una modificación: asignación actual, propuesta y conflictos de la propuesta (sección 9.4).
+/// </summary>
+public sealed record PrevisualizacionModificacionAsignacionDto(
+    long IdAsignacion,
+    long IdEmpleado,
+    DatosAsignacionDto Actual,
+    DatosAsignacionDto Nuevo,
+    bool PuedeModificarse,
+    IReadOnlyList<ConflictoTurnoDto> Conflictos);

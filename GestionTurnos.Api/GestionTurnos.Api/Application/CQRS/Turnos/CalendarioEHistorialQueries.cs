@@ -163,7 +163,8 @@ public sealed record ObtenerCalendarioGeneralQuery(
     DateTimeOffset Hasta,
     long? IdEmpleado = null,
     int? IdArea = null,
-    string? TipoEvento = null) : IRequest<Result<IReadOnlyList<EventoCalendarioGeneralDto>>>;
+    string? TipoEvento = null,
+    int? IdTurno = null) : IRequest<Result<IReadOnlyList<EventoCalendarioGeneralDto>>>;
 
 public sealed class ObtenerCalendarioGeneralQueryHandler
     : IRequestHandler<ObtenerCalendarioGeneralQuery, Result<IReadOnlyList<EventoCalendarioGeneralDto>>>
@@ -176,6 +177,13 @@ public sealed class ObtenerCalendarioGeneralQueryHandler
         ObtenerCalendarioGeneralQuery request,
         CancellationToken cancellationToken)
     {
+        // Filtro por tipo de turno: la vista no tiene id_turno, así que se consulta turnos.asignacion.
+        // Solo devuelve eventos TURNO (los descansos, vacaciones y novedades no tienen tipo de turno).
+        if (request.IdTurno.HasValue)
+        {
+            return await ObtenerTurnosPorTipoAsync(request, cancellationToken);
+        }
+
         var query = from vc in _context.VistaCalendario.AsNoTracking()
                     join emp in _context.Empleados.AsNoTracking() on vc.IdEmpleado equals emp.IdEmpleado
                     join area in _context.Areas.AsNoTracking() on emp.IdArea equals area.IdArea
@@ -221,6 +229,69 @@ public sealed class ObtenerCalendarioGeneralQueryHandler
                 x.Inicio,
                 x.Fin))
             .ToListAsync(cancellationToken);
+
+        return Result.Success<IReadOnlyList<EventoCalendarioGeneralDto>>(items);
+    }
+
+    private async Task<Result<IReadOnlyList<EventoCalendarioGeneralDto>>> ObtenerTurnosPorTipoAsync(
+        ObtenerCalendarioGeneralQuery request,
+        CancellationToken cancellationToken)
+    {
+        const string tipoTurno = "TURNO";
+
+        if (!string.IsNullOrWhiteSpace(request.TipoEvento) &&
+            !string.Equals(request.TipoEvento.Trim(), tipoTurno, StringComparison.OrdinalIgnoreCase))
+        {
+            return Result.Success<IReadOnlyList<EventoCalendarioGeneralDto>>(Array.Empty<EventoCalendarioGeneralDto>());
+        }
+
+        // El periodo se guarda como texto (tstzrange): se acota por fecha en la base y se cruza en memoria.
+        var fechaDesde = DateOnly.FromDateTime(request.Desde.UtcDateTime).AddDays(-1);
+        var fechaHasta = DateOnly.FromDateTime(request.Hasta.UtcDateTime).AddDays(1);
+
+        var query = _context.Asignaciones
+            .AsNoTracking()
+            .Where(a => a.IdTurno == request.IdTurno!.Value &&
+                        a.CodEstadoAsignacion != EstadosAsignacion.Anulada &&
+                        a.Fecha >= fechaDesde &&
+                        a.Fecha <= fechaHasta);
+
+        if (request.IdEmpleado.HasValue)
+        {
+            query = query.Where(a => a.IdEmpleado == request.IdEmpleado.Value);
+        }
+
+        if (request.IdArea.HasValue)
+        {
+            query = query.Where(a => a.Empleado.IdArea == request.IdArea.Value);
+        }
+
+        var filas = await query
+            .Select(a => new
+            {
+                a.IdEmpleado,
+                NombreEmpleado = a.Empleado.Nombres + " " + a.Empleado.Apellidos,
+                a.Empleado.IdArea,
+                NombreArea = a.Empleado.Area.Nombre,
+                NombreTurno = a.Turno.Nombre,
+                a.Periodo
+            })
+            .ToListAsync(cancellationToken);
+
+        var items = filas
+            .Where(f => f.Periodo.Inicio < request.Hasta && f.Periodo.Fin > request.Desde)
+            .OrderBy(f => f.Periodo.Inicio)
+            .ThenBy(f => f.NombreEmpleado)
+            .Select(f => new EventoCalendarioGeneralDto(
+                f.IdEmpleado,
+                f.NombreEmpleado,
+                f.IdArea,
+                f.NombreArea,
+                tipoTurno,
+                f.NombreTurno,
+                f.Periodo.Inicio,
+                f.Periodo.Fin))
+            .ToList();
 
         return Result.Success<IReadOnlyList<EventoCalendarioGeneralDto>>(items);
     }

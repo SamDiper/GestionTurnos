@@ -90,6 +90,38 @@ public sealed class TurnosController : BaseApiController
     }
 
     /// <summary>
+    /// Consulta previa de conflictos (sección 9.1): cruces con turnos, vacaciones, novedades y descansos,
+    /// y validaciones por parámetro según CONFLICTO_BLOQUEA. No guarda nada.
+    /// </summary>
+    [HttpGet("asignaciones/revisar-conflictos")]
+    public async Task<IActionResult> RevisarConflictos(
+        [FromQuery] long idEmpleado,
+        [FromQuery] int idTurno,
+        [FromQuery] DateOnly fecha,
+        [FromQuery] long? idAsignacionActual,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(
+            new RevisarConflictosAsignacionQuery(idEmpleado, idTurno, fecha, idAsignacionActual), cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Vista previa de una modificación (sección 9.4): asignación actual contra la nueva y sus conflictos. No guarda nada.
+    /// </summary>
+    [HttpGet("asignaciones/{idAsignacion:long}/previsualizar-modificacion")]
+    public async Task<IActionResult> PrevisualizarModificacion(
+        long idAsignacion,
+        [FromQuery] int idTurno,
+        [FromQuery] DateOnly fecha,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(
+            new PrevisualizarModificacionAsignacionQuery(idAsignacion, idTurno, fecha), cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
     /// Programa uno o varios turnos en una sola transacción construyendo el periodo en la zona horaria de la empresa (Sección 6.1).
     /// </summary>
     [HttpPost("asignaciones")]
@@ -121,7 +153,7 @@ public sealed class TurnosController : BaseApiController
     }
 
     /// <summary>
-    /// Anula una asignación de turno (cod_estado_asignacion = 'ANULADA') si no tiene registro de asistencia (Sección 6.1).
+    /// Anula una asignación de turno con motivo obligatorio (campo observacion) si no tiene asistencia registrada (sección 9.5).
     /// </summary>
     [HttpPost("asignaciones/{idAsignacion:long}/anular")]
     public async Task<IActionResult> AnularAsignacion(
@@ -189,9 +221,10 @@ public sealed class TurnosController : BaseApiController
         [FromQuery] long? idEmpleado,
         [FromQuery] int? idArea,
         [FromQuery] string? tipo,
+        [FromQuery] int? idTurno,
         CancellationToken cancellationToken = default)
     {
-        var query = new ObtenerCalendarioGeneralQuery(desde, hasta, idEmpleado, idArea, tipo);
+        var query = new ObtenerCalendarioGeneralQuery(desde, hasta, idEmpleado, idArea, tipo, idTurno);
         var result = await Sender.Send(query, cancellationToken);
         return HandleResult(result);
     }

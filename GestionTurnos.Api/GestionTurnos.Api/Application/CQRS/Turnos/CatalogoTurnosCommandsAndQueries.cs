@@ -72,11 +72,30 @@ public sealed class GuardarTurnoCommandValidator : AbstractValidator<GuardarTurn
     {
         RuleFor(x => x.Nombre).NotEmpty().MaximumLength(60);
         RuleFor(x => x.MinutosDescanso).GreaterThanOrEqualTo(0);
+
+        // Sección 8: inicio y fin distintos. Si la hora final es menor que la inicial, el turno cruza la
+        // medianoche y es válido (cruza_medianoche y duracion_minutos los calcula la base).
+        RuleFor(x => x.HoraFin)
+            .NotEqual(x => x.HoraInicio)
+            .WithMessage("La hora de inicio y la hora de fin del turno deben ser distintas.");
+
+        RuleFor(x => x.MinutosDescanso)
+            .Must((cmd, descanso) => descanso < DuracionMinutos(cmd.HoraInicio, cmd.HoraFin))
+            .WithMessage(cmd => $"El descanso debe ser menor que la duración del turno ({DuracionMinutos(cmd.HoraInicio, cmd.HoraFin)} minutos).")
+            .When(x => x.HoraFin != x.HoraInicio);
         RuleFor(x => x.Color)
             .Matches("^#[0-9A-Fa-f]{6}$")
             .WithMessage("El color debe estar en formato hexadecimal (ej. #F5B041).")
             .When(x => !string.IsNullOrWhiteSpace(x.Color));
     }
+
+    /// <summary>
+    /// Misma fórmula que la columna generada turnos.turno.duracion_minutos; solo se usa para validar, nunca se escribe.
+    /// </summary>
+    /// <remarks>
+    /// La resta de <see cref="TimeOnly"/> es circular: 22:00 → 06:00 da 8 h, igual que el + 86400 de la columna.
+    /// </remarks>
+    private static int DuracionMinutos(TimeOnly inicio, TimeOnly fin) => (int)(fin - inicio).TotalMinutes;
 }
 
 public sealed class GuardarTurnoCommandHandler : IRequestHandler<GuardarTurnoCommand, Result<int>>
