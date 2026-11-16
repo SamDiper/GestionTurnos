@@ -31,7 +31,7 @@ public static class SecurityServiceCollectionExtensions
                 ValidateAudience = true,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                ValidIssuer = jwtSettings["Issuer"] ?? "GobernacionCaquetaApi",
+                ValidIssuer = jwtSettings["Issuer"] ?? "GestionTurnosApi",
                 ValidAudience = jwtSettings["Audience"] ?? "AngularApp",
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
                 ClockSkew = TimeSpan.Zero

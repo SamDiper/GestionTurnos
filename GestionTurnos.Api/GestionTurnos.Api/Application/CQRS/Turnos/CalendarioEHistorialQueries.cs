@@ -157,7 +157,7 @@ public sealed class ObtenerMiHistorialTurnosQueryHandler
 // 5. CALENDARIO GENERAL ADMINISTRATIVO (RF-09)
 // =====================================================================
 
-[RequirePermission(PermisosSistema.TurnosProgramar)]
+[RequirePermission(PermisosSistema.ReportesConsultar)]
 public sealed record ObtenerCalendarioGeneralQuery(
     DateTimeOffset Desde,
     DateTimeOffset Hasta,

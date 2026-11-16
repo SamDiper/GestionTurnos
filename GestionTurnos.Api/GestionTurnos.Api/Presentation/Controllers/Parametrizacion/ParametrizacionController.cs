@@ -31,12 +31,30 @@ public sealed class ParametrizacionController : BaseApiController
         return HandleResult(result);
     }
 
+    [HttpPost("tipos-documento")]
+    public async Task<IActionResult> GuardarTipoDocumento(
+        [FromBody] GuardarCatalogoSimpleRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(new GuardarTipoDocumentoCommand(request.Codigo, request.Nombre, request.Activo), cancellationToken);
+        return HandleResult(result);
+    }
+
     [HttpGet("tipos-contrato")]
     public async Task<IActionResult> ListarTiposContrato(
         [FromQuery] bool soloActivos = true,
         CancellationToken cancellationToken = default)
     {
         var result = await Sender.Send(new ListarTiposContratoQuery(soloActivos), cancellationToken);
+        return HandleResult(result);
+    }
+
+    [HttpPost("tipos-contrato")]
+    public async Task<IActionResult> GuardarTipoContrato(
+        [FromBody] GuardarCatalogoSimpleRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(new GuardarTipoContratoCommand(request.Codigo, request.Nombre, request.Activo), cancellationToken);
         return HandleResult(result);
     }
 
@@ -50,12 +68,43 @@ public sealed class ParametrizacionController : BaseApiController
         return HandleResult(result);
     }
 
+    [HttpPost("tipos-novedad")]
+    public async Task<IActionResult> GuardarTipoNovedad(
+        [FromBody] GuardarTipoNovedadRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new GuardarTipoNovedadCommand(
+            request.CodTipoNovedad,
+            request.Nombre,
+            request.RemuneradoDefecto,
+            request.AfectaHorasDefecto,
+            request.RequiereAprobacion,
+            request.RequiereSoporte,
+            request.Activo);
+        var result = await Sender.Send(command, cancellationToken);
+        return HandleResult(result);
+    }
+
     [HttpGet("categorias-hora")]
     public async Task<IActionResult> ListarCategoriasHora(
         [FromQuery] bool soloActivos = true,
         CancellationToken cancellationToken = default)
     {
         var result = await Sender.Send(new ListarCategoriasHoraQuery(soloActivos), cancellationToken);
+        return HandleResult(result);
+    }
+
+    [HttpPost("categorias-hora")]
+    public async Task<IActionResult> GuardarCategoriaHora(
+        [FromBody] GuardarCategoriaHoraRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new GuardarCategoriaHoraCommand(
+            request.CodCategoriaHora,
+            request.Nombre,
+            request.FactorPago,
+            request.Activo);
+        var result = await Sender.Send(command, cancellationToken);
         return HandleResult(result);
     }
 

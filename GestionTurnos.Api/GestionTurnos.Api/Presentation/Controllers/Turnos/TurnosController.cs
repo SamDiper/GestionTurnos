@@ -152,6 +152,22 @@ public sealed class TurnosController : BaseApiController
     }
 
     /// <summary>
+    /// Lista los días de descanso programados en un rango de fechas (permiso: turnos.programar).
+    /// </summary>
+    [HttpGet("descansos")]
+    public async Task<IActionResult> ListarDiasDescanso(
+        [FromQuery] DateOnly fechaDesde,
+        [FromQuery] DateOnly fechaHasta,
+        [FromQuery] long? idEmpleado,
+        [FromQuery] int? idArea,
+        CancellationToken cancellationToken = default)
+    {
+        var query = new ListarDiasDescansoQuery(fechaDesde, fechaHasta, idEmpleado, idArea);
+        var result = await Sender.Send(query, cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
     /// Programa un día de descanso validando que no exista un turno activo en esa fecha (Sección 6.1).
     /// </summary>
     [HttpPost("descansos")]
@@ -164,7 +180,7 @@ public sealed class TurnosController : BaseApiController
     }
 
     /// <summary>
-    /// Consulta el calendario general unificado filtrando por empleado, área o tipo de evento (Sección 5 - RF-09).
+    /// Consulta el calendario general unificado filtrando por empleado, área o tipo de evento (Sección 5 - RF-09 - permiso: reportes.consultar).
     /// </summary>
     [HttpGet("calendario-general")]
     public async Task<IActionResult> ObtenerCalendarioGeneral(
@@ -176,6 +192,22 @@ public sealed class TurnosController : BaseApiController
         CancellationToken cancellationToken = default)
     {
         var query = new ObtenerCalendarioGeneralQuery(desde, hasta, idEmpleado, idArea, tipo);
+        var result = await Sender.Send(query, cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Lista todas las solicitudes de cambio de turno entre compañeros para gestión administrativa (permiso: turnos.programar).
+    /// </summary>
+    [HttpGet("cambios")]
+    public async Task<IActionResult> ListarCambiosTurnoAdmin(
+        [FromQuery] string? estado,
+        [FromQuery] long? idEmpleado,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var query = new ListarCambiosTurnoAdminQuery(estado, idEmpleado, pageNumber, pageSize);
         var result = await Sender.Send(query, cancellationToken);
         return HandleResult(result);
     }

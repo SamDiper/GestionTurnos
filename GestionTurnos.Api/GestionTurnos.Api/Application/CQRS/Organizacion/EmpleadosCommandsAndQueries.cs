@@ -461,3 +461,56 @@ public sealed class DesactivarEmpleadoCommandHandler : IRequestHandler<Desactiva
     }
 }
 
+/// <summary>
+/// Reactiva un empleado inactivo fijando cod_estado_empleado = 'ACTIVO', fecha_retiro = null y,
+/// en la misma transacción, usuario.cod_estado_usuario = 'ACTIVO' (permiso: empleados.gestionar).
+/// </summary>
+[RequirePermission(PermisosSistema.EmpleadosGestionar)]
+public sealed record ReactivarEmpleadoCommand(long IdEmpleado) : IRequest<Result>;
+
+public sealed class ReactivarEmpleadoCommandHandler : IRequestHandler<ReactivarEmpleadoCommand, Result>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public ReactivarEmpleadoCommandHandler(GestionTurnosContext context, IUnitOfWork unitOfWork)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<Result> Handle(ReactivarEmpleadoCommand request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            var empleado = await _context.Empleados
+                .Include(e => e.Usuario)
+                .FirstOrDefaultAsync(e => e.IdEmpleado == request.IdEmpleado, cancellationToken);
+
+            if (empleado is null)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure(new Error("Organizacion.EmpleadoNoEncontrado", "El empleado no fue encontrado.", ErrorType.NotFound));
+            }
+
+            empleado.CodEstadoEmpleado = EstadosEmpleado.Activo;
+            empleado.FechaRetiro = null;
+
+            if (empleado.Usuario is not null)
+            {
+                empleado.Usuario.CodEstadoUsuario = EstadosUsuario.Activo;
+            }
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+            return Result.Failure(DatabaseErrorTranslator.Translate(ex));
+        }
+    }
+}
+

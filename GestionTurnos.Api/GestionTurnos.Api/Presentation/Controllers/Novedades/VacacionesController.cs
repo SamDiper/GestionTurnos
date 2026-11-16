@@ -114,5 +114,29 @@ public sealed class VacacionesController : BaseApiController
         var result = await Sender.Send(command, cancellationToken);
         return HandleResult(result);
     }
+
+    /// <summary>
+    /// Lista los períodos vacacionales registrados (permiso: vacaciones.aprobar).
+    /// </summary>
+    [HttpGet("periodos")]
+    public async Task<IActionResult> ListarPeriodosVacacionales(
+        [FromQuery] long? idEmpleado,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new ListarPeriodosVacacionalesAdminQuery(idEmpleado), cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Consulta los saldos de vacaciones desde novedades.v_saldo_vacaciones (permiso: vacaciones.aprobar).
+    /// </summary>
+    [HttpGet("saldos")]
+    public async Task<IActionResult> ListarSaldosAdmin(
+        [FromQuery] long? idEmpleado,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new ListarSaldosVacacionesAdminQuery(idEmpleado), cancellationToken);
+        return HandleResult(result);
+    }
 }
 

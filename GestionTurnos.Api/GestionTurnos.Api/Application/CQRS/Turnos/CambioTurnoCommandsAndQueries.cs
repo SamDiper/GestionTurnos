@@ -415,3 +415,71 @@ public sealed class ResolverCambioTurnoCommandHandler : IRequestHandler<Resolver
     }
 }
 
+[RequirePermission(PermisosSistema.TurnosProgramar)]
+public sealed record ListarCambiosTurnoAdminQuery(
+    string? CodEstadoSolicitud = null,
+    long? IdEmpleado = null,
+    int PageNumber = 1,
+    int PageSize = 20) : IRequest<Result<PagedResult<SolicitudCambioTurnoDto>>>;
+
+public sealed class ListarCambiosTurnoAdminQueryHandler
+    : IRequestHandler<ListarCambiosTurnoAdminQuery, Result<PagedResult<SolicitudCambioTurnoDto>>>
+{
+    private readonly GestionTurnosContext _context;
+
+    public ListarCambiosTurnoAdminQueryHandler(GestionTurnosContext context) => _context = context;
+
+    public async Task<Result<PagedResult<SolicitudCambioTurnoDto>>> Handle(
+        ListarCambiosTurnoAdminQuery request,
+        CancellationToken cancellationToken)
+    {
+        int pageNumber = Math.Max(request.PageNumber, 1);
+        int pageSize = Math.Clamp(request.PageSize, 1, 50);
+
+        var query = _context.SolicitudesCambioTurno.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(request.CodEstadoSolicitud))
+        {
+            var estado = request.CodEstadoSolicitud.Trim().ToUpperInvariant();
+            query = query.Where(s => s.CodEstadoSolicitud == estado);
+        }
+
+        if (request.IdEmpleado.HasValue)
+        {
+            var idEmp = request.IdEmpleado.Value;
+            query = query.Where(s =>
+                s.AsignacionSolicitante.IdEmpleado == idEmp ||
+                s.AsignacionCompanero.IdEmpleado == idEmp);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(s => s.SolicitadoEn)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(s => new SolicitudCambioTurnoDto(
+                s.IdSolicitudCambio,
+                s.IdAsignacionSolicitante,
+                s.AsignacionSolicitante.IdEmpleado,
+                s.AsignacionSolicitante.Empleado.Nombres + " " + s.AsignacionSolicitante.Empleado.Apellidos,
+                s.AsignacionSolicitante.Fecha,
+                s.AsignacionSolicitante.Turno.Nombre,
+                s.IdAsignacionCompanero,
+                s.AsignacionCompanero.IdEmpleado,
+                s.AsignacionCompanero.Empleado.Nombres + " " + s.AsignacionCompanero.Empleado.Apellidos,
+                s.AsignacionCompanero.Fecha,
+                s.AsignacionCompanero.Turno.Nombre,
+                s.Motivo,
+                s.CodEstadoSolicitud,
+                s.EstadoSolicitud.Nombre,
+                s.SolicitadoEn,
+                s.ResueltoPor,
+                s.ResueltoEn,
+                s.MotivoRechazo))
+            .ToListAsync(cancellationToken);
+
+        return Result.Success(new PagedResult<SolicitudCambioTurnoDto>(items, totalCount, pageNumber, pageSize));
+    }
+}
+

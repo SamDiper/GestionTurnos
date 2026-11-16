@@ -146,6 +146,250 @@ public sealed class ListarCategoriasHoraQueryHandler
     }
 }
 
+[RequirePermission(PermisosSistema.ParametrosEditar)]
+public sealed record GuardarTipoDocumentoCommand(
+    string CodTipoDocumento,
+    string Nombre,
+    bool Activo = true) : IRequest<Result>;
+
+public sealed class GuardarTipoDocumentoCommandValidator : AbstractValidator<GuardarTipoDocumentoCommand>
+{
+    public GuardarTipoDocumentoCommandValidator()
+    {
+        RuleFor(x => x.CodTipoDocumento).NotEmpty().MaximumLength(10);
+        RuleFor(x => x.Nombre).NotEmpty().MaximumLength(60);
+    }
+}
+
+public sealed class GuardarTipoDocumentoCommandHandler : IRequestHandler<GuardarTipoDocumentoCommand, Result>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public GuardarTipoDocumentoCommandHandler(GestionTurnosContext context, IUnitOfWork unitOfWork)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<Result> Handle(GuardarTipoDocumentoCommand request, CancellationToken cancellationToken)
+    {
+        var codigo = request.CodTipoDocumento.Trim().ToUpperInvariant();
+        var existente = await _context.TiposDocumento.FirstOrDefaultAsync(t => t.CodTipoDocumento == codigo, cancellationToken);
+        if (existente is null)
+        {
+            await _context.TiposDocumento.AddAsync(new TipoDocumento
+            {
+                CodTipoDocumento = codigo,
+                Nombre = request.Nombre.Trim(),
+                Activo = request.Activo
+            }, cancellationToken);
+        }
+        else
+        {
+            existente.Nombre = request.Nombre.Trim();
+            existente.Activo = request.Activo;
+        }
+
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure(DatabaseErrorTranslator.Translate(ex));
+        }
+    }
+}
+
+[RequirePermission(PermisosSistema.ParametrosEditar)]
+public sealed record GuardarTipoContratoCommand(
+    string CodTipoContrato,
+    string Nombre,
+    bool Activo = true) : IRequest<Result>;
+
+public sealed class GuardarTipoContratoCommandValidator : AbstractValidator<GuardarTipoContratoCommand>
+{
+    public GuardarTipoContratoCommandValidator()
+    {
+        RuleFor(x => x.CodTipoContrato).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.Nombre).NotEmpty().MaximumLength(60);
+    }
+}
+
+public sealed class GuardarTipoContratoCommandHandler : IRequestHandler<GuardarTipoContratoCommand, Result>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public GuardarTipoContratoCommandHandler(GestionTurnosContext context, IUnitOfWork unitOfWork)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<Result> Handle(GuardarTipoContratoCommand request, CancellationToken cancellationToken)
+    {
+        var codigo = request.CodTipoContrato.Trim().ToUpperInvariant();
+        var existente = await _context.TiposContrato.FirstOrDefaultAsync(t => t.CodTipoContrato == codigo, cancellationToken);
+        if (existente is null)
+        {
+            await _context.TiposContrato.AddAsync(new TipoContrato
+            {
+                CodTipoContrato = codigo,
+                Nombre = request.Nombre.Trim(),
+                Activo = request.Activo
+            }, cancellationToken);
+        }
+        else
+        {
+            existente.Nombre = request.Nombre.Trim();
+            existente.Activo = request.Activo;
+        }
+
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure(DatabaseErrorTranslator.Translate(ex));
+        }
+    }
+}
+
+[RequirePermission(PermisosSistema.ParametrosEditar)]
+public sealed record GuardarTipoNovedadCommand(
+    string CodTipoNovedad,
+    string Nombre,
+    bool RemuneradoDefecto,
+    bool AfectaHorasDefecto,
+    bool RequiereAprobacion = true,
+    bool RequiereSoporte = false,
+    bool Activo = true) : IRequest<Result>;
+
+public sealed class GuardarTipoNovedadCommandValidator : AbstractValidator<GuardarTipoNovedadCommand>
+{
+    public GuardarTipoNovedadCommandValidator()
+    {
+        RuleFor(x => x.CodTipoNovedad).NotEmpty().MaximumLength(30);
+        RuleFor(x => x.Nombre).NotEmpty().MaximumLength(80);
+    }
+}
+
+public sealed class GuardarTipoNovedadCommandHandler : IRequestHandler<GuardarTipoNovedadCommand, Result>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public GuardarTipoNovedadCommandHandler(GestionTurnosContext context, IUnitOfWork unitOfWork)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<Result> Handle(GuardarTipoNovedadCommand request, CancellationToken cancellationToken)
+    {
+        var codigo = request.CodTipoNovedad.Trim().ToUpperInvariant();
+        var existente = await _context.TiposNovedad.FirstOrDefaultAsync(t => t.CodTipoNovedad == codigo, cancellationToken);
+        if (existente is null)
+        {
+            await _context.TiposNovedad.AddAsync(new TipoNovedad
+            {
+                CodTipoNovedad = codigo,
+                Nombre = request.Nombre.Trim(),
+                RemuneradoDefecto = request.RemuneradoDefecto,
+                AfectaHorasDefecto = request.AfectaHorasDefecto,
+                RequiereAprobacion = request.RequiereAprobacion,
+                RequiereSoporte = request.RequiereSoporte,
+                Activo = request.Activo
+            }, cancellationToken);
+        }
+        else
+        {
+            existente.Nombre = request.Nombre.Trim();
+            existente.RemuneradoDefecto = request.RemuneradoDefecto;
+            existente.AfectaHorasDefecto = request.AfectaHorasDefecto;
+            existente.RequiereAprobacion = request.RequiereAprobacion;
+            existente.RequiereSoporte = request.RequiereSoporte;
+            existente.Activo = request.Activo;
+        }
+
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure(DatabaseErrorTranslator.Translate(ex));
+        }
+    }
+}
+
+[RequirePermission(PermisosSistema.ParametrosEditar)]
+public sealed record GuardarCategoriaHoraCommand(
+    string CodCategoriaHora,
+    string Nombre,
+    decimal FactorPago = 1.00m,
+    bool Activo = true) : IRequest<Result>;
+
+public sealed class GuardarCategoriaHoraCommandValidator : AbstractValidator<GuardarCategoriaHoraCommand>
+{
+    public GuardarCategoriaHoraCommandValidator()
+    {
+        RuleFor(x => x.CodCategoriaHora).NotEmpty().MaximumLength(30);
+        RuleFor(x => x.Nombre).NotEmpty().MaximumLength(80);
+        RuleFor(x => x.FactorPago).GreaterThanOrEqualTo(0);
+    }
+}
+
+public sealed class GuardarCategoriaHoraCommandHandler : IRequestHandler<GuardarCategoriaHoraCommand, Result>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public GuardarCategoriaHoraCommandHandler(GestionTurnosContext context, IUnitOfWork unitOfWork)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<Result> Handle(GuardarCategoriaHoraCommand request, CancellationToken cancellationToken)
+    {
+        var codigo = request.CodCategoriaHora.Trim().ToUpperInvariant();
+        var existente = await _context.CategoriasHora.FirstOrDefaultAsync(c => c.CodCategoriaHora == codigo, cancellationToken);
+        if (existente is null)
+        {
+            await _context.CategoriasHora.AddAsync(new CategoriaHora
+            {
+                CodCategoriaHora = codigo,
+                Nombre = request.Nombre.Trim(),
+                FactorPago = request.FactorPago,
+                Activo = request.Activo
+            }, cancellationToken);
+        }
+        else
+        {
+            existente.Nombre = request.Nombre.Trim();
+            existente.FactorPago = request.FactorPago;
+            existente.Activo = request.Activo;
+        }
+
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure(DatabaseErrorTranslator.Translate(ex));
+        }
+    }
+}
+
 // =====================================================================
 // DÍAS FESTIVOS (parametrizacion.dia_festivo)
 // =====================================================================

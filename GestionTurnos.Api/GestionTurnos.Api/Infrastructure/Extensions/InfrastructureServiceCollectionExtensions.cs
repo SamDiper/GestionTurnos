@@ -18,21 +18,53 @@ public static class InfrastructureServiceCollectionExtensions
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        var dbSettings = configuration
+            .GetSection(DatabaseSettings.SectionName)
+            .Get<DatabaseSettings>() ?? new DatabaseSettings();
+
+        var connectionString = configuration.GetConnectionString(dbSettings.ConnectionStringName)
+                               ?? configuration.GetConnectionString("DefaultConnection");
+
+        services.AddOptions<DatabaseSettings>()
+            .Bind(configuration.GetSection(DatabaseSettings.SectionName))
+            .ValidateDataAnnotations();
 
         services.AddSingleton<SessionAndTimeZoneInterceptor>();
 
         services.AddDbContext<GestionTurnosContext>((sp, options) =>
         {
             var interceptor = sp.GetRequiredService<SessionAndTimeZoneInterceptor>();
-            options.UseSqlServer(connectionString)
-                   .AddInterceptors(interceptor);
+            options.UseSqlServer(connectionString, sqlOptions =>
+            {
+                sqlOptions.CommandTimeout(dbSettings.CommandTimeoutSeconds);
+                if (dbSettings.EnableRetryOnFailure)
+                {
+                    sqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: dbSettings.MaxRetryCount,
+                        maxRetryDelay: TimeSpan.FromSeconds(dbSettings.MaxRetryDelaySeconds),
+                        errorNumbersToAdd: null);
+                }
+            })
+            .AddInterceptors(interceptor);
+
+            if (dbSettings.EnableSensitiveDataLogging)
+            {
+                options.EnableSensitiveDataLogging();
+            }
+
+            if (dbSettings.EnableDetailedErrors)
+            {
+                options.EnableDetailedErrors();
+            }
         });
 
         // Contexto aislado para persistencia de DataProtection en SQL Server
         services.AddDbContext<DataProtectionKeyContext>(options =>
         {
-            options.UseSqlServer(connectionString);
+            options.UseSqlServer(connectionString, sqlOptions =>
+            {
+                sqlOptions.CommandTimeout(dbSettings.CommandTimeoutSeconds);
+            });
         });
 
         // Repositorios e Inyección de Dependencias

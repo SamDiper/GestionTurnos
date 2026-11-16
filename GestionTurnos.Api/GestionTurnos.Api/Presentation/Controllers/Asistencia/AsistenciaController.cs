@@ -82,6 +82,35 @@ public sealed class AsistenciaController : BaseApiController
     }
 
     /// <summary>
+    /// Consulta administrativa de los registros de asistencia de todos los empleados (permiso: asistencia.consultar).
+    /// </summary>
+    [HttpGet("registros")]
+    public async Task<IActionResult> ListarRegistrosAdmin(
+        [FromQuery] DateTimeOffset desde,
+        [FromQuery] DateTimeOffset hasta,
+        [FromQuery] long? idEmpleado,
+        [FromQuery] int? idArea,
+        [FromQuery] string? fuente,
+        [FromQuery] bool? soloAbiertos,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken cancellationToken = default)
+    {
+        var query = new ListarRegistrosAsistenciaAdminQuery(
+            desde,
+            hasta,
+            idEmpleado,
+            idArea,
+            fuente,
+            soloAbiertos,
+            pageNumber,
+            pageSize);
+
+        var result = await Sender.Send(query, cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
     /// Registro manual de asistencia por el administrador con reliquidación automática (Sección 3.6 - permiso: asistencia.registrar_manual).
     /// </summary>
     [HttpPost("manual")]
