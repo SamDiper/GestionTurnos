@@ -48,6 +48,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IEmpleadoSesionService, EmpleadoSesionService>();
 
+        // Parametrización y Reglas de Negocio
+        services.AddScoped<IParametroService, ParametroService>();
+
         // Generación de Documentos PDF y Renderizado de Plantillas
         services.AddSingleton(typeof(WkHtmlToPdfDotNet.Contracts.IConverter), new WkHtmlToPdfDotNet.SynchronizedConverter(new WkHtmlToPdfDotNet.PdfTools()));
         services.AddScoped<ITemplateRenderer, ScribanTemplateRenderer>();
