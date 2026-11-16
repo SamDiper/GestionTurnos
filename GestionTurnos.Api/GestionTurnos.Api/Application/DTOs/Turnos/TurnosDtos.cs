@@ -76,3 +76,26 @@ public sealed record HistorialTurnoEmpleadoDto(
     string CodEstadoAsignacion,
     string? Observacion);
 
+/// <summary>
+/// Solicitud de cambio de turno entre compañeros (Sección 3.9 - OPC-03).
+/// </summary>
+public sealed record SolicitudCambioTurnoDto(
+    long IdSolicitudCambio,
+    long IdAsignacionSolicitante,
+    long IdEmpleadoSolicitante,
+    string NombreEmpleadoSolicitante,
+    DateOnly FechaTurnoSolicitante,
+    string NombreTurnoSolicitante,
+    long IdAsignacionCompanero,
+    long IdEmpleadoCompanero,
+    string NombreEmpleadoCompanero,
+    DateOnly FechaTurnoCompanero,
+    string NombreTurnoCompanero,
+    string? Motivo,
+    string CodEstadoSolicitud,
+    string NombreEstadoSolicitud,
+    DateTimeOffset SolicitadoEn,
+    long? ResueltoPor,
+    DateTimeOffset? ResueltoEn,
+    string? MotivoRechazo);
+

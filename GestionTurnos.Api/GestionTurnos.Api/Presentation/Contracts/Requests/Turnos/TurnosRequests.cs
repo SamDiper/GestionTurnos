@@ -31,3 +31,12 @@ public sealed record ProgramarDiaDescansoRequest(
     long IdEmpleado,
     DateOnly Fecha);
 
+public sealed record SolicitarCambioTurnoRequest(
+    long IdAsignacionSolicitante,
+    long IdAsignacionCompanero,
+    string? Motivo);
+
+public sealed record ResolverCambioTurnoRequest(
+    bool Aprobar,
+    string? MotivoRechazo = null);
+
