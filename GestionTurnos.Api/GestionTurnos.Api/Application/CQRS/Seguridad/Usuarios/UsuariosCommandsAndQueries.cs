@@ -2,6 +2,8 @@ using FluentValidation;
 using GestionTurnos.Api.Application.Common.Security;
 using GestionTurnos.Api.Application.DTOs.Seguridad;
 using GestionTurnos.Api.Application.Interfaces;
+using GestionTurnos.Api.Application.Rules.Seguridad;
+using GestionTurnos.Api.Domain.Entities.Auditoria;
 using GestionTurnos.Api.Domain.Entities.Seguridad;
 using GestionTurnos.Api.Domain.Enums;
 using GestionTurnos.Api.Domain.Errors.Seguridad;
@@ -249,58 +251,328 @@ public sealed class ActualizarUsuarioCommandHandler : IRequestHandler<Actualizar
 {
     private readonly GestionTurnosContext _context;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICurrentUserService _currentUserService;
 
-    public ActualizarUsuarioCommandHandler(GestionTurnosContext context, IUnitOfWork unitOfWork)
+    public ActualizarUsuarioCommandHandler(
+        GestionTurnosContext context,
+        IUnitOfWork unitOfWork,
+        ICurrentUserService currentUserService)
     {
         _context = context;
         _unitOfWork = unitOfWork;
+        _currentUserService = currentUserService;
     }
 
     public async Task<Result> Handle(ActualizarUsuarioCommand request, CancellationToken cancellationToken)
     {
-        var usuario = await _context.Usuarios
-            .FirstOrDefaultAsync(u => u.IdUsuario == request.IdUsuario, cancellationToken);
-
-        if (usuario is null)
-        {
-            return Result.Failure(AuthErrors.UsuarioNoEncontrado);
-        }
-
-        bool rolActivo = await _context.Roles
-            .AsNoTracking()
-            .AnyAsync(r => r.IdRol == request.IdRol && r.Activo, cancellationToken);
-
-        if (!rolActivo)
-        {
-            return Result.Failure(AuthErrors.RolNoEncontrado);
-        }
-
         var nuevoCorreo = request.Correo.Trim().ToLowerInvariant();
-        if (!string.Equals(usuario.Correo, nuevoCorreo, StringComparison.OrdinalIgnoreCase))
-        {
-            bool correoEnUso = await _context.Usuarios
-                .AsNoTracking()
-                .AnyAsync(u => u.IdUsuario != request.IdUsuario && u.Correo.ToLower() == nuevoCorreo, cancellationToken);
 
-            if (correoEnUso)
+        return await CambioUsuario.EjecutarAsync(
+            _context,
+            _unitOfWork,
+            _currentUserService,
+            request.IdUsuario,
+            request.CodEstadoUsuario.Trim().ToUpperInvariant(),
+            request.IdRol,
+            async usuario =>
             {
-                return Result.Failure(AuthErrors.CorreoYaRegistrado);
-            }
-        }
+                if (string.Equals(usuario.Correo, nuevoCorreo, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Result.Success();
+                }
 
-        usuario.Correo = nuevoCorreo;
-        usuario.IdRol = request.IdRol;
-        usuario.CodEstadoUsuario = request.CodEstadoUsuario.Trim().ToUpperInvariant();
+                bool correoEnUso = await _context.Usuarios
+                    .AsNoTracking()
+                    .AnyAsync(u => u.IdUsuario != usuario.IdUsuario && u.Correo.ToLower() == nuevoCorreo, cancellationToken);
+
+                if (correoEnUso)
+                {
+                    return Result.Failure(AuthErrors.CorreoYaRegistrado);
+                }
+
+                usuario.Correo = nuevoCorreo;
+                return Result.Success();
+            },
+            cancellationToken);
+    }
+}
+
+// =====================================================================
+// CAMBIAR ESTADO Y ROL (FLUJO_BD_ADMIN sección 4)
+// =====================================================================
+
+/// <summary>
+/// Activa, desactiva o bloquea un usuario (UPDATE cod_estado_usuario). El disparador lo audita.
+/// </summary>
+[RequirePermission(PermisosSistema.UsuariosGestionar)]
+public sealed record CambiarEstadoUsuarioCommand(
+    long IdUsuario,
+    string CodEstadoUsuario) : IRequest<Result>;
+
+public sealed class CambiarEstadoUsuarioCommandValidator : AbstractValidator<CambiarEstadoUsuarioCommand>
+{
+    public CambiarEstadoUsuarioCommandValidator()
+    {
+        RuleFor(x => x.IdUsuario).GreaterThan(0);
+
+        RuleFor(x => x.CodEstadoUsuario)
+            .NotEmpty()
+            .Must(e => e?.Trim().ToUpperInvariant() is EstadosUsuario.Activo or EstadosUsuario.Inactivo or EstadosUsuario.Bloqueado)
+            .WithMessage("El estado del usuario debe ser ACTIVO, INACTIVO o BLOQUEADO.");
+    }
+}
+
+public sealed class CambiarEstadoUsuarioCommandHandler : IRequestHandler<CambiarEstadoUsuarioCommand, Result>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ICurrentUserService _currentUserService;
+
+    public CambiarEstadoUsuarioCommandHandler(
+        GestionTurnosContext context,
+        IUnitOfWork unitOfWork,
+        ICurrentUserService currentUserService)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+        _currentUserService = currentUserService;
+    }
+
+    public Task<Result> Handle(CambiarEstadoUsuarioCommand request, CancellationToken cancellationToken)
+    {
+        return CambioUsuario.EjecutarAsync(
+            _context,
+            _unitOfWork,
+            _currentUserService,
+            request.IdUsuario,
+            request.CodEstadoUsuario.Trim().ToUpperInvariant(),
+            idRolNuevo: null,
+            cambiosAdicionales: null,
+            cancellationToken);
+    }
+}
+
+/// <summary>
+/// Cambia el rol de un usuario (UPDATE id_rol). No se asignan roles inactivos. El disparador lo audita.
+/// </summary>
+[RequirePermission(PermisosSistema.UsuariosGestionar)]
+public sealed record CambiarRolUsuarioCommand(
+    long IdUsuario,
+    int IdRol) : IRequest<Result>;
+
+public sealed class CambiarRolUsuarioCommandValidator : AbstractValidator<CambiarRolUsuarioCommand>
+{
+    public CambiarRolUsuarioCommandValidator()
+    {
+        RuleFor(x => x.IdUsuario).GreaterThan(0);
+        RuleFor(x => x.IdRol).GreaterThan(0).WithMessage("El rol es obligatorio.");
+    }
+}
+
+public sealed class CambiarRolUsuarioCommandHandler : IRequestHandler<CambiarRolUsuarioCommand, Result>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ICurrentUserService _currentUserService;
+
+    public CambiarRolUsuarioCommandHandler(
+        GestionTurnosContext context,
+        IUnitOfWork unitOfWork,
+        ICurrentUserService currentUserService)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+        _currentUserService = currentUserService;
+    }
+
+    public Task<Result> Handle(CambiarRolUsuarioCommand request, CancellationToken cancellationToken)
+    {
+        return CambioUsuario.EjecutarAsync(
+            _context,
+            _unitOfWork,
+            _currentUserService,
+            request.IdUsuario,
+            estadoNuevo: null,
+            request.IdRol,
+            cambiosAdicionales: null,
+            cancellationToken);
+    }
+}
+
+/// <summary>
+/// Flujo común para cambiar estado y/o rol de un usuario dentro de una transacción,
+/// con la fila del usuario bloqueada y las reglas de protección del administrador.
+/// </summary>
+internal static class CambioUsuario
+{
+    public static async Task<Result> EjecutarAsync(
+        GestionTurnosContext context,
+        IUnitOfWork unitOfWork,
+        ICurrentUserService currentUserService,
+        long idUsuario,
+        string? estadoNuevo,
+        int? idRolNuevo,
+        Func<Usuario, Task<Result>>? cambiosAdicionales,
+        CancellationToken cancellationToken)
+    {
+        var idUsuarioSesion = currentUserService.UserId!.Value;
 
         try
         {
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            var usuario = await context.BloquearPorIdAsync<Usuario>(idUsuario, cancellationToken);
+            if (usuario is null)
+            {
+                await unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure(AuthErrors.UsuarioNoEncontrado);
+            }
+
+            var estado = estadoNuevo ?? usuario.CodEstadoUsuario;
+            var idRol = idRolNuevo ?? usuario.IdRol;
+
+            if (idRol != usuario.IdRol)
+            {
+                bool rolActivo = await context.Roles
+                    .AsNoTracking()
+                    .AnyAsync(r => r.IdRol == idRol && r.Activo, cancellationToken);
+
+                if (!rolActivo)
+                {
+                    await unitOfWork.RollbackTransactionAsync(cancellationToken);
+                    return Result.Failure(AuthErrors.RolNoEncontrado);
+                }
+            }
+
+            var regla = await ReglasAdministracionUsuarios.ValidarCambioUsuarioAsync(
+                context,
+                idUsuarioSesion,
+                usuario.IdUsuario,
+                usuario.CodEstadoUsuario,
+                usuario.IdRol,
+                estado,
+                idRol,
+                cancellationToken);
+
+            if (regla.IsFailure)
+            {
+                await unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return regla;
+            }
+
+            if (cambiosAdicionales is not null)
+            {
+                var adicional = await cambiosAdicionales(usuario);
+                if (adicional.IsFailure)
+                {
+                    await unitOfWork.RollbackTransactionAsync(cancellationToken);
+                    return adicional;
+                }
+            }
+
+            usuario.CodEstadoUsuario = estado;
+            usuario.IdRol = idRol;
+
+            // El disparador tg_aud_usuario registra el cambio en la bitácora.
+            await unitOfWork.CommitTransactionAsync(cancellationToken);
             return Result.Success();
         }
         catch (Exception ex)
         {
+            await unitOfWork.RollbackTransactionAsync(cancellationToken);
             return Result.Failure(DatabaseErrorTranslator.Translate(ex));
         }
     }
 }
 
+// =====================================================================
+// RESTABLECER CONTRASEÑA (FLUJO_BD_ADMIN sección 4)
+// =====================================================================
+
+/// <summary>
+/// Restablece la contraseña de un usuario. El disparador omite hash_contrasena,
+/// por eso la fila de bitácora (MODIFICAR) se inserta a mano en la misma transacción.
+/// </summary>
+[RequirePermission(PermisosSistema.UsuariosGestionar)]
+public sealed record RestablecerContrasenaCommand(
+    long IdUsuario,
+    string NuevaContrasena) : IRequest<Result>;
+
+public sealed class RestablecerContrasenaCommandValidator : AbstractValidator<RestablecerContrasenaCommand>
+{
+    public RestablecerContrasenaCommandValidator()
+    {
+        RuleFor(x => x.IdUsuario).GreaterThan(0);
+
+        RuleFor(x => x.NuevaContrasena)
+            .NotEmpty().WithMessage("La nueva contraseña es obligatoria.")
+            .MinimumLength(8).WithMessage("La contraseña debe tener al menos 8 caracteres.")
+            .MaximumLength(72);
+    }
+}
+
+public sealed class RestablecerContrasenaCommandHandler : IRequestHandler<RestablecerContrasenaCommand, Result>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IPasswordHasher _passwordHasher;
+    private readonly ICurrentUserService _currentUserService;
+
+    public RestablecerContrasenaCommandHandler(
+        GestionTurnosContext context,
+        IUnitOfWork unitOfWork,
+        IPasswordHasher passwordHasher,
+        ICurrentUserService currentUserService)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+        _passwordHasher = passwordHasher;
+        _currentUserService = currentUserService;
+    }
+
+    public async Task<Result> Handle(RestablecerContrasenaCommand request, CancellationToken cancellationToken)
+    {
+        var idAdmin = _currentUserService.UserId!.Value;
+
+        try
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            var usuario = await _context.BloquearPorIdAsync<Usuario>(request.IdUsuario, cancellationToken);
+            if (usuario is null)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure(AuthErrors.UsuarioNoEncontrado);
+            }
+
+            var idEmpleado = await _context.Empleados
+                .AsNoTracking()
+                .Where(e => e.IdUsuario == usuario.IdUsuario)
+                .Select(e => (long?)e.IdEmpleado)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            usuario.HashContrasena = _passwordHasher.Hash(request.NuevaContrasena);
+
+            await _context.BitacoraNegocio.AddAsync(new BitacoraNegocio
+            {
+                FechaHora = DateTimeOffset.UtcNow,
+                IdUsuario = idAdmin,
+                CodTipoAccion = TiposAccionAuditoria.Modificar,
+                Esquema = "seguridad",
+                Tabla = "usuario",
+                IdRegistro = usuario.IdUsuario.ToString(),
+                IdEmpleado = idEmpleado,
+                Descripcion = "Restablecimiento de contraseña",
+                IpOrigen = _currentUserService.IpAddress
+            }, cancellationToken);
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+            return Result.Failure(DatabaseErrorTranslator.Translate(ex));
+        }
+    }
+}

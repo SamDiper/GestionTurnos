@@ -38,3 +38,12 @@ public sealed record GuardarRolRequest(
     bool Activo,
     IReadOnlyList<string> CodigosPermisos);
 
+
+public sealed record CambiarEstadoUsuarioRequest(
+    string CodEstadoUsuario);
+
+public sealed record CambiarRolUsuarioRequest(
+    int IdRol);
+
+public sealed record RestablecerContrasenaRequest(
+    string NuevaContrasena);

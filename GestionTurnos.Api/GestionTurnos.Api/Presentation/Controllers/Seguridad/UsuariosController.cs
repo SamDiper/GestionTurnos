@@ -60,6 +60,45 @@ public sealed class UsuariosController : BaseApiController
         return HandleResult(result);
     }
 
+    /// <summary>
+    /// Activa, desactiva o bloquea un usuario (ACTIVO, INACTIVO, BLOQUEADO).
+    /// </summary>
+    [HttpPatch("{idUsuario:long}/estado")]
+    public async Task<IActionResult> CambiarEstado(
+        long idUsuario,
+        [FromBody] CambiarEstadoUsuarioRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(new CambiarEstadoUsuarioCommand(idUsuario, request.CodEstadoUsuario), cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Cambia el rol de un usuario (solo roles activos).
+    /// </summary>
+    [HttpPatch("{idUsuario:long}/rol")]
+    public async Task<IActionResult> CambiarRol(
+        long idUsuario,
+        [FromBody] CambiarRolUsuarioRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(new CambiarRolUsuarioCommand(idUsuario, request.IdRol), cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Restablece la contraseña de un usuario y deja la fila de bitácora correspondiente.
+    /// </summary>
+    [HttpPost("{idUsuario:long}/restablecer-contrasena")]
+    public async Task<IActionResult> RestablecerContrasena(
+        long idUsuario,
+        [FromBody] RestablecerContrasenaRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(new RestablecerContrasenaCommand(idUsuario, request.NuevaContrasena), cancellationToken);
+        return HandleResult(result);
+    }
+
     [HttpGet("roles")]
     public async Task<IActionResult> ListarRoles(
         [FromQuery] bool soloActivos = false,
@@ -87,6 +126,36 @@ public sealed class UsuariosController : BaseApiController
     {
         var command = new GuardarRolCommand(idRol, request.Nombre, request.Descripcion, request.Activo, request.CodigosPermisos);
         var result = await Sender.Send(command, cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Desactiva un rol (activo = false). Los roles no se borran.
+    /// </summary>
+    [HttpPost("roles/{idRol:int}/desactivar")]
+    public async Task<IActionResult> DesactivarRol(int idRol, CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(new DesactivarRolCommand(idRol), cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Asigna un permiso a un rol.
+    /// </summary>
+    [HttpPost("roles/{idRol:int}/permisos/{idPermiso:int}")]
+    public async Task<IActionResult> AsignarPermiso(int idRol, int idPermiso, CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(new AsignarPermisoRolCommand(idRol, idPermiso), cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Quita un permiso a un rol (DELETE en seguridad.rol_permiso, auditado por la base).
+    /// </summary>
+    [HttpDelete("roles/{idRol:int}/permisos/{idPermiso:int}")]
+    public async Task<IActionResult> QuitarPermiso(int idRol, int idPermiso, CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(new QuitarPermisoRolCommand(idRol, idPermiso), cancellationToken);
         return HandleResult(result);
     }
 

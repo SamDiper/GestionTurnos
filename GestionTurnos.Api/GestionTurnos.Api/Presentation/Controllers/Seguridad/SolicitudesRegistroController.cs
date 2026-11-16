@@ -18,7 +18,7 @@ public sealed class SolicitudesRegistroController : BaseApiController
     }
 
     /// <summary>
-    /// Lista las solicitudes de registro paginadas (nunca expone hash_contrasena).
+    /// Bandeja de solicitudes de registro por estado (por defecto PENDIENTE), paginada y sin hash_contrasena.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> Listar(

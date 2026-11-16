@@ -125,7 +125,8 @@ public sealed class IniciarSesionCommandHandler : IRequestHandler<IniciarSesionC
         // 5. Registra el acceso en una transacción (UPDATE ultimo_acceso + INSERT en auditoria.bitacora_negocio)
         try
         {
-            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+            // Aún no hay sesión autenticada: el autor de la auditoría es el propio usuario que ingresa.
+            await _unitOfWork.BeginTransactionAsync(usuario.IdUsuario, cancellationToken);
 
             usuario.UltimoAcceso = DateTimeOffset.UtcNow;
 

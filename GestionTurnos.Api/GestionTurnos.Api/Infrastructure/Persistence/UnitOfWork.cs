@@ -48,7 +48,7 @@ public class UnitOfWork : IUnitOfWork
         }
         else if (!_auditSessionConfigured)
         {
-            await ConfigureAuditSessionAsync(cancellationToken);
+            await ConfigureAuditSessionAsync(_currentUserService.UserId, cancellationToken);
         }
 
         try
@@ -96,7 +96,14 @@ public class UnitOfWork : IUnitOfWork
     }
 
     /// <inheritdoc />
-    public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
+    public Task BeginTransactionAsync(CancellationToken cancellationToken = default)
+        => BeginTransactionCoreAsync(_currentUserService.UserId, cancellationToken);
+
+    /// <inheritdoc />
+    public Task BeginTransactionAsync(long idUsuarioAuditoria, CancellationToken cancellationToken = default)
+        => BeginTransactionCoreAsync(idUsuarioAuditoria, cancellationToken);
+
+    private async Task BeginTransactionCoreAsync(long? idUsuarioAuditoria, CancellationToken cancellationToken)
     {
         if (_transaction != null)
         {
@@ -104,7 +111,7 @@ public class UnitOfWork : IUnitOfWork
         }
 
         _transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-        await ConfigureAuditSessionAsync(cancellationToken);
+        await ConfigureAuditSessionAsync(idUsuarioAuditoria, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -154,9 +161,9 @@ public class UnitOfWork : IUnitOfWork
     /// <summary>
     /// Fija 'app.id_usuario' y 'app.ip' al inicio de la transacción de escritura (Sección 1).
     /// </summary>
-    private async Task ConfigureAuditSessionAsync(CancellationToken cancellationToken)
+    private async Task ConfigureAuditSessionAsync(long? idUsuario, CancellationToken cancellationToken)
     {
-        var userId = _currentUserService.UserId?.ToString() ?? string.Empty;
+        var userId = idUsuario?.ToString() ?? string.Empty;
         var ip = _currentUserService.IpAddress ?? string.Empty;
         var providerName = _context.Database.ProviderName ?? string.Empty;
 

@@ -1,6 +1,7 @@
 using FluentValidation;
 using GestionTurnos.Api.Application.Common.Security;
 using GestionTurnos.Api.Application.DTOs.Seguridad;
+using GestionTurnos.Api.Application.Rules.Seguridad;
 using GestionTurnos.Api.Domain.Entities.Seguridad;
 using GestionTurnos.Api.Domain.Enums;
 using GestionTurnos.Api.Domain.Errors.Seguridad;
@@ -121,14 +122,26 @@ public sealed class GuardarRolCommandHandler : IRequestHandler<GuardarRolCommand
             Rol rol;
             if (request.IdRol.HasValue && request.IdRol.Value > 0)
             {
-                var existente = await _context.Roles
-                    .Include(r => r.RolPermisos)
-                    .FirstOrDefaultAsync(r => r.IdRol == request.IdRol.Value, cancellationToken);
+                var existente = await _context.BloquearPorIdAsync<Rol>(request.IdRol.Value, cancellationToken);
 
                 if (existente is null)
                 {
                     await _unitOfWork.RollbackTransactionAsync(cancellationToken);
                     return Result.Failure<int>(AuthErrors.RolNoEncontrado);
+                }
+
+                bool conservaGestionUsuarios = request.Activo && request.CodigosPermisos.Any(c =>
+                    string.Equals(c?.Trim(), PermisosSistema.UsuariosGestionar, StringComparison.OrdinalIgnoreCase));
+
+                if (!conservaGestionUsuarios)
+                {
+                    var regla = await ReglasAdministracionUsuarios.ValidarRolDejaDeGestionarUsuariosAsync(
+                        _context, existente.IdRol, cancellationToken);
+                    if (regla.IsFailure)
+                    {
+                        await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                        return Result.Failure<int>(regla.Error);
+                    }
                 }
 
                 existente.Nombre = request.Nombre.Trim();
@@ -160,6 +173,12 @@ public sealed class GuardarRolCommandHandler : IRequestHandler<GuardarRolCommand
                 .Where(p => codigosSolicitados.Contains(p.Codigo.ToLower()))
                 .ToListAsync(cancellationToken);
 
+            if (permisosBd.Count != codigosSolicitados.Count)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure<int>(AuthErrors.PermisoNoEncontrado);
+            }
+
             var actuales = await _context.RolesPermisos
                 .Where(rp => rp.IdRol == rol.IdRol)
                 .ToListAsync(cancellationToken);
@@ -190,6 +209,216 @@ public sealed class GuardarRolCommandHandler : IRequestHandler<GuardarRolCommand
         {
             await _unitOfWork.RollbackTransactionAsync(cancellationToken);
             return Result.Failure<int>(DatabaseErrorTranslator.Translate(ex));
+        }
+    }
+}
+
+// =====================================================================
+// DESACTIVAR ROL, ASIGNAR Y QUITAR PERMISOS (FLUJO_BD_ADMIN sección 4)
+// =====================================================================
+
+/// <summary>
+/// Desactiva un rol (activo = false). Los roles no se borran.
+/// </summary>
+[RequirePermission(PermisosSistema.UsuariosGestionar)]
+public sealed record DesactivarRolCommand(int IdRol) : IRequest<Result>;
+
+public sealed class DesactivarRolCommandValidator : AbstractValidator<DesactivarRolCommand>
+{
+    public DesactivarRolCommandValidator()
+    {
+        RuleFor(x => x.IdRol).GreaterThan(0);
+    }
+}
+
+public sealed class DesactivarRolCommandHandler : IRequestHandler<DesactivarRolCommand, Result>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public DesactivarRolCommandHandler(GestionTurnosContext context, IUnitOfWork unitOfWork)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<Result> Handle(DesactivarRolCommand request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            var rol = await _context.BloquearPorIdAsync<Rol>(request.IdRol, cancellationToken);
+            if (rol is null)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure(AuthErrors.RolNoEncontrado);
+            }
+
+            if (!rol.Activo)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Success();
+            }
+
+            var regla = await ReglasAdministracionUsuarios.ValidarRolDejaDeGestionarUsuariosAsync(
+                _context, rol.IdRol, cancellationToken);
+            if (regla.IsFailure)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return regla;
+            }
+
+            rol.Activo = false;
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+            return Result.Failure(DatabaseErrorTranslator.Translate(ex));
+        }
+    }
+}
+
+/// <summary>
+/// Asigna un permiso a un rol (INSERT en seguridad.rol_permiso; el disparador lo audita).
+/// </summary>
+[RequirePermission(PermisosSistema.UsuariosGestionar)]
+public sealed record AsignarPermisoRolCommand(int IdRol, int IdPermiso) : IRequest<Result>;
+
+public sealed class AsignarPermisoRolCommandValidator : AbstractValidator<AsignarPermisoRolCommand>
+{
+    public AsignarPermisoRolCommandValidator()
+    {
+        RuleFor(x => x.IdRol).GreaterThan(0);
+        RuleFor(x => x.IdPermiso).GreaterThan(0);
+    }
+}
+
+public sealed class AsignarPermisoRolCommandHandler : IRequestHandler<AsignarPermisoRolCommand, Result>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public AsignarPermisoRolCommandHandler(GestionTurnosContext context, IUnitOfWork unitOfWork)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<Result> Handle(AsignarPermisoRolCommand request, CancellationToken cancellationToken)
+    {
+        bool rolExiste = await _context.Roles
+            .AsNoTracking()
+            .AnyAsync(r => r.IdRol == request.IdRol, cancellationToken);
+        if (!rolExiste)
+        {
+            return Result.Failure(AuthErrors.RolNoEncontrado);
+        }
+
+        bool permisoExiste = await _context.Permisos
+            .AsNoTracking()
+            .AnyAsync(p => p.IdPermiso == request.IdPermiso, cancellationToken);
+        if (!permisoExiste)
+        {
+            return Result.Failure(AuthErrors.PermisoNoEncontrado);
+        }
+
+        bool yaAsignado = await _context.RolesPermisos
+            .AsNoTracking()
+            .AnyAsync(rp => rp.IdRol == request.IdRol && rp.IdPermiso == request.IdPermiso, cancellationToken);
+        if (yaAsignado)
+        {
+            return Result.Failure(AuthErrors.PermisoYaAsignado);
+        }
+
+        try
+        {
+            await _context.RolesPermisos.AddAsync(
+                new RolPermiso { IdRol = request.IdRol, IdPermiso = request.IdPermiso },
+                cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure(DatabaseErrorTranslator.Translate(ex));
+        }
+    }
+}
+
+/// <summary>
+/// Quita un permiso a un rol. Es la única operación con DELETE de esta fase
+/// (DELETE FROM seguridad.rol_permiso WHERE id_rol = $1 AND id_permiso = $2; queda auditado por el disparador).
+/// </summary>
+[RequirePermission(PermisosSistema.UsuariosGestionar)]
+public sealed record QuitarPermisoRolCommand(int IdRol, int IdPermiso) : IRequest<Result>;
+
+public sealed class QuitarPermisoRolCommandValidator : AbstractValidator<QuitarPermisoRolCommand>
+{
+    public QuitarPermisoRolCommandValidator()
+    {
+        RuleFor(x => x.IdRol).GreaterThan(0);
+        RuleFor(x => x.IdPermiso).GreaterThan(0);
+    }
+}
+
+public sealed class QuitarPermisoRolCommandHandler : IRequestHandler<QuitarPermisoRolCommand, Result>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public QuitarPermisoRolCommandHandler(GestionTurnosContext context, IUnitOfWork unitOfWork)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<Result> Handle(QuitarPermisoRolCommand request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            var rol = await _context.BloquearPorIdAsync<Rol>(request.IdRol, cancellationToken);
+            if (rol is null)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure(AuthErrors.RolNoEncontrado);
+            }
+
+            var asignacion = await _context.RolesPermisos
+                .Include(rp => rp.Permiso)
+                .FirstOrDefaultAsync(rp => rp.IdRol == request.IdRol && rp.IdPermiso == request.IdPermiso, cancellationToken);
+
+            if (asignacion is null)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure(AuthErrors.PermisoNoAsignado);
+            }
+
+            if (string.Equals(asignacion.Permiso.Codigo, PermisosSistema.UsuariosGestionar, StringComparison.OrdinalIgnoreCase))
+            {
+                var regla = await ReglasAdministracionUsuarios.ValidarRolDejaDeGestionarUsuariosAsync(
+                    _context, request.IdRol, cancellationToken);
+                if (regla.IsFailure)
+                {
+                    await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                    return regla;
+                }
+            }
+
+            _context.RolesPermisos.Remove(asignacion);
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+            return Result.Failure(DatabaseErrorTranslator.Translate(ex));
         }
     }
 }

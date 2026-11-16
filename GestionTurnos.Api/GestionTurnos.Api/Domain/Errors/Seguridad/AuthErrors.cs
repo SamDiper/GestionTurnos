@@ -71,6 +71,41 @@ public static class AuthErrors
         "El rol seleccionado no existe o está inactivo.",
         ErrorType.NotFound);
 
+    public static readonly Error NoPuedeDesactivarseASiMismo = new(
+        "Seguridad.NoPuedeDesactivarseASiMismo",
+        "No puede desactivar ni bloquear su propio usuario.",
+        ErrorType.Conflict);
+
+    public static readonly Error NoPuedeCambiarsePropioRol = new(
+        "Seguridad.NoPuedeCambiarsePropioRol",
+        "No puede cambiar el rol de su propio usuario.",
+        ErrorType.Conflict);
+
+    public static readonly Error UltimoAdministrador = new(
+        "Seguridad.UltimoAdministrador",
+        "La operación dejaría el sistema sin ningún usuario activo con permiso para gestionar usuarios.",
+        ErrorType.Conflict);
+
+    public static readonly Error PermisoNoEncontrado = new(
+        "Seguridad.PermisoNoEncontrado",
+        "El permiso seleccionado no existe.",
+        ErrorType.NotFound);
+
+    public static readonly Error PermisoYaAsignado = new(
+        "Seguridad.PermisoYaAsignado",
+        "El rol ya tiene asignado ese permiso.",
+        ErrorType.Conflict);
+
+    public static readonly Error PermisoNoAsignado = new(
+        "Seguridad.PermisoNoAsignado",
+        "El rol no tiene asignado ese permiso.",
+        ErrorType.NotFound);
+
+    public static readonly Error RolNombreDuplicado = new(
+        "Seguridad.RolNombreDuplicado",
+        "Ya existe un rol con ese nombre.",
+        ErrorType.Conflict);
+
     public static readonly Error AreaNoEncontrada = new(
         "Organizacion.AreaNoEncontrada",
         "El área seleccionada no existe o fue desactivada.",

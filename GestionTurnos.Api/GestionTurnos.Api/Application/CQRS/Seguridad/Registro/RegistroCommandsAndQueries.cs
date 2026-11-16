@@ -256,23 +256,42 @@ public sealed class AprobarSolicitudRegistroCommandHandler
             // En una sola transacción (Sección 3.2)
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
-            // 1. Obtener la solicitud PENDIENTE dentro de la transacción
-            var solicitud = await _context.SolicitudesRegistro
-                .FirstOrDefaultAsync(
-                    s => s.IdSolicitudRegistro == request.IdSolicitudRegistro &&
-                         s.CodEstadoSolicitud == EstadosSolicitud.Pendiente,
-                    cancellationToken);
+            // 1. Bloquear la solicitud (FOR UPDATE) y exigir que siga PENDIENTE
+            var solicitud = await _context.BloquearPorIdAsync<SolicitudRegistro>(
+                request.IdSolicitudRegistro, cancellationToken);
 
-            if (solicitud is null)
+            if (solicitud is null || solicitud.CodEstadoSolicitud != EstadosSolicitud.Pendiente)
             {
                 await _unitOfWork.RollbackTransactionAsync(cancellationToken);
                 return Result.Failure<AprobacionRegistroResultDto>(AuthErrors.SolicitudNoEncontradaOPendiente);
             }
 
+            // Mensajes claros si el correo o el documento se registraron después de la solicitud
+            // (la unicidad final la garantiza la base: 23505 se traduce en el catch).
+            var correoSolicitud = solicitud.Correo.Trim().ToLowerInvariant();
+            bool correoExiste = await _context.Usuarios
+                .AsNoTracking()
+                .AnyAsync(u => u.Correo.ToLower() == correoSolicitud, cancellationToken);
+            if (correoExiste)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure<AprobacionRegistroResultDto>(AuthErrors.CorreoYaRegistrado);
+            }
+
+            bool documentoExiste = await _context.Empleados
+                .AsNoTracking()
+                .AnyAsync(e => e.CodTipoDocumento == solicitud.CodTipoDocumento &&
+                               e.NumeroDocumento == solicitud.NumeroDocumento, cancellationToken);
+            if (documentoExiste)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure<AprobacionRegistroResultDto>(AuthErrors.DocumentoYaRegistrado);
+            }
+
             // 2. Crear el usuario con el hash que ya trae la solicitud
             var nuevoUsuario = new Usuario
             {
-                Correo = solicitud.Correo.Trim().ToLowerInvariant(),
+                Correo = correoSolicitud,
                 HashContrasena = solicitud.HashContrasena,
                 IdRol = rolEmpleado.IdRol,
                 CodEstadoUsuario = EstadosUsuario.Activo,
@@ -364,29 +383,30 @@ public sealed class RechazarSolicitudRegistroCommandHandler : IRequestHandler<Re
     {
         var adminId = _currentUserService.UserId!.Value;
 
-        var solicitud = await _context.SolicitudesRegistro
-            .FirstOrDefaultAsync(
-                s => s.IdSolicitudRegistro == request.IdSolicitudRegistro &&
-                     s.CodEstadoSolicitud == EstadosSolicitud.Pendiente,
-                cancellationToken);
-
-        if (solicitud is null)
-        {
-            return Result.Failure(AuthErrors.SolicitudNoEncontradaOPendiente);
-        }
-
-        solicitud.CodEstadoSolicitud = EstadosSolicitud.Rechazada;
-        solicitud.RevisadoPor = adminId;
-        solicitud.RevisadoEn = DateTimeOffset.UtcNow;
-        solicitud.MotivoRechazo = request.MotivoRechazo.Trim();
-
         try
         {
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            var solicitud = await _context.BloquearPorIdAsync<SolicitudRegistro>(
+                request.IdSolicitudRegistro, cancellationToken);
+
+            if (solicitud is null || solicitud.CodEstadoSolicitud != EstadosSolicitud.Pendiente)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure(AuthErrors.SolicitudNoEncontradaOPendiente);
+            }
+
+            solicitud.CodEstadoSolicitud = EstadosSolicitud.Rechazada;
+            solicitud.RevisadoPor = adminId;
+            solicitud.RevisadoEn = DateTimeOffset.UtcNow;
+            solicitud.MotivoRechazo = request.MotivoRechazo.Trim();
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
             return Result.Success();
         }
         catch (Exception ex)
         {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
             return Result.Failure(DatabaseErrorTranslator.Translate(ex));
         }
     }
@@ -422,11 +442,11 @@ public sealed class ListarSolicitudesRegistroQueryHandler
 
         IQueryable<SolicitudRegistro> query = _context.SolicitudesRegistro.AsNoTracking();
 
-        if (!string.IsNullOrWhiteSpace(request.CodEstadoSolicitud))
-        {
-            var estado = request.CodEstadoSolicitud.Trim().ToUpperInvariant();
-            query = query.Where(s => s.CodEstadoSolicitud == estado);
-        }
+        // Bandeja por estado; por defecto solo las PENDIENTE (FLUJO_BD_ADMIN sección 5).
+        var estado = string.IsNullOrWhiteSpace(request.CodEstadoSolicitud)
+            ? EstadosSolicitud.Pendiente
+            : request.CodEstadoSolicitud.Trim().ToUpperInvariant();
+        query = query.Where(s => s.CodEstadoSolicitud == estado);
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
@@ -442,7 +462,8 @@ public sealed class ListarSolicitudesRegistroQueryHandler
 
         // Proyección directa: jamás incluye hash_contrasena (Sección 3.1 punto 4 y Sección 9)
         var items = await query
-            .OrderByDescending(s => s.SolicitadoEn)
+            .OrderBy(s => s.SolicitadoEn)
+            .ThenBy(s => s.IdSolicitudRegistro)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .Select(s => new SolicitudRegistroDto(
