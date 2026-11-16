@@ -222,6 +222,23 @@ public static class DatabaseErrorTranslator
                 ErrorType.Conflict);
         }
 
+        if (combined.Contains("rol_permiso", StringComparison.OrdinalIgnoreCase))
+        {
+            return new Error(
+                "Seguridad.PermisoYaAsignado",
+                "El rol ya tiene asignado ese permiso.",
+                ErrorType.Conflict);
+        }
+
+        if (combined.Contains("rol_nombre", StringComparison.OrdinalIgnoreCase) ||
+            combined.Contains("seguridad.rol'", StringComparison.OrdinalIgnoreCase))
+        {
+            return new Error(
+                "Seguridad.RolNombreDuplicado",
+                "Ya existe un rol con ese nombre.",
+                ErrorType.Conflict);
+        }
+
         return new Error(
             "Database.UniqueViolation",
             "Ya existe un registro con los mismos datos únicos.",

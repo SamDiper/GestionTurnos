@@ -8,6 +8,8 @@ public class SensitiveDataEnricher : ILogEventEnricher
     private readonly HashSet<string> _sensitiveKeys = new(StringComparer.OrdinalIgnoreCase)
     {
         "password",
+        "contrasena",
+        "hash",
         "token",
         "secret",
         "clave",

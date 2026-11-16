@@ -18,6 +18,12 @@ public interface IUnitOfWork : IDisposable, IAsyncDisposable
     Task BeginTransactionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Inicia una transacción fijando explícitamente el autor para la auditoría ('app.id_usuario').
+    /// Se usa cuando aún no hay usuario autenticado en la solicitud (inicio de sesión).
+    /// </summary>
+    Task BeginTransactionAsync(long idUsuarioAuditoria, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Confirma la transacción actual, aplicando todos los cambios de forma permanente.
     /// </summary>
     Task CommitTransactionAsync(CancellationToken cancellationToken = default);
