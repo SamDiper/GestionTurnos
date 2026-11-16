@@ -1,12 +1,13 @@
 using Asp.Versioning;
 using GestionTurnos.Api.Application.CQRS.Turnos;
+using GestionTurnos.Api.Presentation.Contracts.Requests.Turnos;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GestionTurnos.Api.Presentation.Controllers.Turnos;
 
 /// <summary>
-/// Consultas de calendario e historial de turnos para el empleado autenticado (Sección 3.4 - RF-09).
+/// Consultas de calendario, historial de turnos y solicitudes de cambio de turno para el empleado autenticado (Secciones 3.4 y 3.9).
 /// Filtra obligatoriamente por el id_empleado de la sesión.
 /// </summary>
 [ApiVersion("1.0")]
@@ -41,6 +42,45 @@ public sealed class MiCalendarioController : BaseApiController
         CancellationToken cancellationToken = default)
     {
         var result = await Sender.Send(new ObtenerMiHistorialTurnosQuery(desde, pageNumber, pageSize), cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Lista las solicitudes de cambio de turno del empleado en sesión (Sección 3.9 - OPC-03).
+    /// </summary>
+    [HttpGet("cambios-turno")]
+    public async Task<IActionResult> ObtenerMisCambiosTurno(CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(new ObtenerMisCambiosTurnoQuery(), cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Solicita un cambio de turno con un compañero validando que ambas asignaciones sean futuras y activas (Sección 3.9 - OPC-03).
+    /// </summary>
+    [HttpPost("cambios-turno")]
+    public async Task<IActionResult> SolicitarMiCambioTurno(
+        [FromBody] SolicitarCambioTurnoRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new SolicitarMiCambioTurnoCommand(
+            request.IdAsignacionSolicitante,
+            request.IdAsignacionCompanero,
+            request.Motivo);
+
+        var result = await Sender.Send(command, cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Cancela una solicitud de cambio de turno propia que siga en estado PENDIENTE (Sección 3.9).
+    /// </summary>
+    [HttpPost("cambios-turno/{idSolicitudCambio:long}/cancelar")]
+    public async Task<IActionResult> CancelarMiCambioTurno(
+        long idSolicitudCambio,
+        CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(new CancelarMiCambioTurnoCommand(idSolicitudCambio), cancellationToken);
         return HandleResult(result);
     }
 }

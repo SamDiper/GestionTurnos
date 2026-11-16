@@ -179,5 +179,20 @@ public sealed class TurnosController : BaseApiController
         var result = await Sender.Send(query, cancellationToken);
         return HandleResult(result);
     }
+
+    /// <summary>
+    /// Aprueba o rechaza una solicitud de cambio de turno entre compañeros anulando las 2 asignaciones originales
+    /// y creando las 2 nuevas cruzadas en una sola transacción (Sección 3.9 - OPC-03).
+    /// </summary>
+    [HttpPost("cambios/{idSolicitudCambio:long}/resolver")]
+    public async Task<IActionResult> ResolverCambioTurno(
+        long idSolicitudCambio,
+        [FromBody] ResolverCambioTurnoRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new ResolverCambioTurnoCommand(idSolicitudCambio, request.Aprobar, request.MotivoRechazo);
+        var result = await Sender.Send(command, cancellationToken);
+        return HandleResult(result);
+    }
 }
 
