@@ -10,7 +10,7 @@ namespace GestionTurnos.Api.Domain.Entities.Asistencia;
 public class RegistroAsistencia : BaseEntity
 {
     public long IdRegistro { get; set; }
-    public long IdEmpleado { get; set; }
+    public long IdEmpleado { get; set; } 
     public long? IdAsignacion { get; set; }
     public DateTimeOffset HoraEntrada { get; set; }
     public DateTimeOffset? HoraSalida { get; set; }
