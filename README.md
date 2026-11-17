@@ -2,6 +2,33 @@
 
 Gestión de Turnos
 
+## Puesta en marcha (desarrollo)
+
+La cadena de conexión a la base de datos **no está en el repositorio**: cada desarrollador la guarda
+en sus user-secrets locales. El script `setup-dev` lo hace por usted.
+
+Requisitos: SDK de .NET 10 (y Node.js LTS si va a levantar el front).
+
+1. Pida al equipo, por un canal privado, los datos de la base de datos (usuario y contraseña de Supabase).
+2. Cree su archivo `.env` (está en `.gitignore`, nunca se sube):
+
+   ```bash
+   cp .env.example .env      # Windows: copy .env.example .env
+   ```
+
+   y complete `DB_USER` y `DB_PASSWORD`. Si no crea el `.env`, el script pide los datos en consola.
+3. Ejecute el script desde la raíz del repositorio:
+
+   | Sistema | Solo configurar | Configurar y levantar la API | API + front |
+   |---|---|---|---|
+   | Linux / macOS / Git Bash | `./setup-dev.sh` | `./setup-dev.sh --run` | `./setup-dev.sh --run-all` |
+   | Windows PowerShell | `.\setup-dev.ps1` | `.\setup-dev.ps1 -Run` | `.\setup-dev.ps1 -RunAll` |
+
+   Si PowerShell bloquea el script: `powershell -ExecutionPolicy Bypass -File .\setup-dev.ps1`.
+
+La API queda en `http://localhost:5161` (Swagger en la raíz). Después de la primera configuración
+basta con `dotnet run` (o F5 en Visual Studio / Rider): los user-secrets persisten en su máquina.
+
 ## Base de datos: permisos y primer administrador
 
 Las tablas ya existen (se crean con `GestionTurnos.Api/sql/gestion_turnos.sql`, PostgreSQL 14+).
