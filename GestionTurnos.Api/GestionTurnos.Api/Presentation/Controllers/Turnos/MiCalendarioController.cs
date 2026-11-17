@@ -46,6 +46,31 @@ public sealed class MiCalendarioController : BaseApiController
     }
 
     /// <summary>
+    /// Turnos futuros (no anulados) del empleado en sesión, con su id_asignacion para solicitar cambios (Sección 3.9).
+    /// </summary>
+    [HttpGet("proximos-turnos")]
+    public async Task<IActionResult> ObtenerMisProximosTurnos(
+        [FromQuery] int dias = 60,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new ObtenerMisProximosTurnosQuery(dias), cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Turnos futuros de los compañeros activos de la misma área, candidatos a intercambio (Sección 3.9).
+    /// </summary>
+    [HttpGet("turnos-companeros")]
+    public async Task<IActionResult> ObtenerTurnosCompaneros(
+        [FromQuery] DateOnly desde,
+        [FromQuery] DateOnly hasta,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await Sender.Send(new ObtenerTurnosCompanerosQuery(desde, hasta), cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
     /// Lista las solicitudes de cambio de turno del empleado en sesión (Sección 3.9 - OPC-03).
     /// </summary>
     [HttpGet("cambios-turno")]

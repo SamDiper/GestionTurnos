@@ -27,6 +27,12 @@ export class ApiClient {
       .pipe(map((res) => res.data as T));
   }
 
+  delete<T>(ruta: string): Observable<T> {
+    return this.http
+      .delete<ApiResponse<T>>(`${this.baseUrl}${ruta}`)
+      .pipe(map((res) => res.data as T));
+  }
+
   static extraerMensajeError(err: unknown): { general: string; campos: Record<string, string> } {
     if (err instanceof HttpErrorResponse) {
       if (err.status === 0) {

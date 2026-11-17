@@ -22,6 +22,9 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
           [placeholder]="placeholder()"
           [disabled]="deshabilitado()"
           [attr.autocomplete]="autocomplete() || null"
+          [attr.min]="min()"
+          [attr.max]="max()"
+          [attr.step]="paso()"
           [attr.aria-required]="obligatorio()"
           [attr.aria-invalid]=" Boolean(error())"
           [attr.aria-describedby]="idDescritor()"
@@ -46,7 +49,12 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 export class UiNotchedFieldComponent {
   readonly id = input.required<string>();
   readonly etiqueta = input.required<string>();
-  readonly tipo = input<'text' | 'email' | 'password' | 'tel' | 'date'>('text');
+  readonly tipo = input<
+    'text' | 'email' | 'password' | 'tel' | 'date' | 'number' | 'time' | 'datetime-local' | 'color'
+  >('text');
+  readonly min = input<string | null>(null);
+  readonly max = input<string | null>(null);
+  readonly paso = input<string | null>(null);
   readonly placeholder = input('');
   readonly valor = input('');
   readonly error = input<string | null | undefined>(null);

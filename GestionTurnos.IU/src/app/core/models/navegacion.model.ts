@@ -10,7 +10,10 @@ export type IconoNavegacion =
   | 'user'
   | 'shield'
   | 'users'
-  | 'chart';
+  | 'chart'
+  | 'settings'
+  | 'inbox'
+  | 'swap';
 
 export interface ItemNavegacion {
   readonly id: string;

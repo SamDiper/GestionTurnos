@@ -8,7 +8,10 @@ export type EstadoInsignia =
   | 'PROGRAMADA'
   | 'CONFIRMADA'
   | 'ANULADA'
-  | 'ACTIVO';
+  | 'ACTIVO'
+  | 'INACTIVO'
+  | 'SUSPENDIDO'
+  | 'BLOQUEADO';
 
 const ESTILOS_ESTADO: Record<EstadoInsignia, string> = {
   PENDIENTE: 'bg-amber-100 text-amber-900 border-amber-300',
@@ -19,6 +22,9 @@ const ESTILOS_ESTADO: Record<EstadoInsignia, string> = {
   RECHAZADA: 'bg-red-100 text-red-900 border-red-300',
   ANULADA: 'bg-red-100 text-red-900 border-red-300',
   CANCELADA: 'bg-slate-200 text-slate-800 border-slate-300',
+  INACTIVO: 'bg-slate-200 text-slate-800 border-slate-300',
+  SUSPENDIDO: 'bg-amber-100 text-amber-900 border-amber-300',
+  BLOQUEADO: 'bg-red-100 text-red-900 border-red-300',
 };
 
 @Component({
@@ -32,12 +38,12 @@ const ESTILOS_ESTADO: Record<EstadoInsignia, string> = {
   `,
 })
 export class UiBadgeComponent {
-  readonly estado = input.required<EstadoInsignia>();
+  readonly estado = input.required<EstadoInsignia | string>();
 
   readonly clases = computed(
     () =>
       `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
-        ESTILOS_ESTADO[this.estado()] ?? ESTILOS_ESTADO.CANCELADA
+        ESTILOS_ESTADO[this.estado() as EstadoInsignia] ?? ESTILOS_ESTADO.CANCELADA
       }`
   );
 }
