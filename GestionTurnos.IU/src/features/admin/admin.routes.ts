@@ -67,6 +67,6 @@ export const ADMIN_ROUTES: Routes = [
       descripcion: 'Comparación detallada de campo, valor anterior y valor nuevo.',
     },
     loadComponent: () =>
-      import('../mi/seccion/mi-seccion.page').then((m) => m.MiSeccionPageComponent),
+      import('./auditoria/auditoria.page').then((m) => m.AuditoriaPageComponent),
   },
 ];

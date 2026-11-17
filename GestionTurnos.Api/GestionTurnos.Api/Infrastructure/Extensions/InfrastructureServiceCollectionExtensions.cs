@@ -31,12 +31,14 @@ public static class InfrastructureServiceCollectionExtensions
             .ValidateDataAnnotations();
 
         services.AddSingleton<SessionAndTimeZoneInterceptor>();
+        services.AddScoped<AuditoriaSaveChangesInterceptor>();
 
         services.AddDbContext<GestionTurnosContext>((sp, options) =>
         {
-            var interceptor = sp.GetRequiredService<SessionAndTimeZoneInterceptor>();
+            var tzInterceptor = sp.GetRequiredService<SessionAndTimeZoneInterceptor>();
+            var auditInterceptor = sp.GetRequiredService<AuditoriaSaveChangesInterceptor>();
             ConfigurarProveedor(options, connectionString, dbSettings, conReintentos: dbSettings.EnableRetryOnFailure)
-                .AddInterceptors(interceptor);
+                .AddInterceptors(tzInterceptor, auditInterceptor);
 
             if (dbSettings.EnableSensitiveDataLogging)
             {

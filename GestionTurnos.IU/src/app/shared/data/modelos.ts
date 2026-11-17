@@ -374,3 +374,23 @@ export const ESTADOS_SOLICITUD = [
   { valor: 'CANCELADA', etiqueta: 'Canceladas' },
   { valor: '', etiqueta: 'Todas' },
 ] as const;
+
+// ---------- Auditoría ----------
+export interface BitacoraNegocio {
+  readonly idBitacora: number;
+  readonly fechaHora: string;
+  readonly idUsuario: number | null;
+  readonly correoUsuario: string | null;
+  readonly codTipoAccion: string;
+  readonly nombreTipoAccion: string;
+  readonly esquema: string;
+  readonly tabla: string;
+  readonly idRegistro: string;
+  readonly idEmpleado: number | null;
+  readonly nombreEmpleado: string | null;
+  readonly valorAnterior: string | null;
+  readonly valorNuevo: string | null;
+  readonly descripcion: string | null;
+  readonly ipOrigen: string | null;
+}
+

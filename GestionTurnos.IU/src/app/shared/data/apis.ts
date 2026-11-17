@@ -3,6 +3,7 @@ import { Observable } from 'rxjs';
 import { ApiClient } from '../../core';
 import {
   Area,
+  BitacoraNegocio,
   Cargo,
   CatalogoItem,
   CategoriaHora,
@@ -107,6 +108,9 @@ export class OrganizacionApi {
   }
   listarCargos(soloActivos = true): Observable<readonly Cargo[]> {
     return this.api.get('/organizacion/cargos', { soloActivos });
+  }
+  crearCargo(nombre: string, activo = true): Observable<{ idCargo: number }> {
+    return this.api.post('/organizacion/cargos', { nombre, activo });
   }
   listarEmpleados(params: Params = {}): Observable<PaginaApi<Empleado>> {
     return this.api.get('/empleados', { estado: 'ACTIVO', pageSize: 100, ...params });
@@ -307,3 +311,45 @@ export class MiApi {
     return this.api.get('/asistencia/mis-horas/turnos', { desde, hasta });
   }
 }
+
+/** Consulta de auditoría y bitácora de negocio (permiso auditoria.consultar). */
+@Injectable({ providedIn: 'root' })
+export class AuditoriaApi {
+  private readonly api = inject(ApiClient);
+
+  consultarBitacora(params: {
+    idEmpleado?: number;
+    idUsuario?: number;
+    codTipoAccion?: string;
+    esquema?: string;
+    tabla?: string;
+    fechaDesde?: string;
+    fechaHasta?: string;
+    pageNumber?: number;
+    pageSize?: number;
+  } = {}): Observable<PaginaApi<BitacoraNegocio>> {
+    const query: Record<string, string | number> = {};
+    if (params.idEmpleado) query['idEmpleado'] = params.idEmpleado;
+    if (params.idUsuario) query['idUsuario'] = params.idUsuario;
+    if (params.codTipoAccion) query['codTipoAccion'] = params.codTipoAccion;
+    if (params.esquema) query['esquema'] = params.esquema;
+    if (params.tabla) query['tabla'] = params.tabla;
+    if (params.fechaDesde) query['fechaDesde'] = params.fechaDesde;
+    if (params.fechaHasta) query['fechaHasta'] = params.fechaHasta;
+    query['pageNumber'] = params.pageNumber ?? 1;
+    query['pageSize'] = params.pageSize ?? 25;
+
+    return this.api.get('/auditoria/bitacora', query);
+  }
+
+  obtenerHistorialRegistro(
+    esquema: string,
+    tabla: string,
+    idRegistro: string,
+    pageNumber = 1,
+    pageSize = 25
+  ): Observable<PaginaApi<BitacoraNegocio>> {
+    return this.api.get(`/auditoria/bitacora/${esquema}/${tabla}/${idRegistro}`, { pageNumber, pageSize });
+  }
+}
+
