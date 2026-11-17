@@ -1,12 +1,18 @@
-import { Component, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { SkipLinkComponent } from './layout';
+import { UiToastContainerComponent } from './shared/ui';
 
+/**
+ * Componente raíz recopilatorio de la aplicación.
+ * Ensambla únicamente el enlace de salto accesible (WCAG 2.4.1),
+ * la región aria-live de notificaciones y el enrutador principal.
+ */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, SkipLinkComponent, UiToastContainerComponent],
   templateUrl: './app.html',
-  styleUrl: './app.css'
+  styleUrl: './app.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class App {
-  protected readonly title = signal('Angular-Architecture-v1');
-}
+export class App {}

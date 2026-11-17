@@ -1,3 +1,88 @@
-/* You can add global styles to this file, and also import other style files */
-
 @import 'tailwindcss';
+
+@theme {
+  /*
+   * Paleta de Marca alineada al Logo oficial:
+   * --color-marca-petroleo: #1D768A (Turquesa / Petróleo medio)
+   * --color-marca-marino:   #113459 (Azul Marino corporativo oscuro)
+   * --color-marca-menta:    #31BBA1 (Verde Menta / Teal vibrante)
+   */
+  --color-marca-50:  #f0fdfa;
+  --color-marca-100: #ccfbf1;
+  --color-marca-200: #99f6e4;
+  --color-marca-300: #5eead4;
+  --color-marca-400: #31BBA1; /* Verde menta vibrante del logo */
+  --color-marca-500: #1D768A; /* Petróleo intermedio del logo */
+  --color-marca-600: #165e6e; /* Petróleo oscuro con contraste WCAG AA >= 4.5:1 sobre blanco */
+  --color-marca-700: #113459; /* Azul Marino profundo del logo */
+  --color-marca-800: #0c2540;
+  --color-marca-900: #081728;
+
+  /* Estados semánticos con contraste AA garantizado */
+  --color-exito:      #0d9488;
+  --color-exito-bg:   #ccfbf1;
+  --color-alerta:     #b45309;
+  --color-alerta-bg:  #fef3c7;
+  --color-peligro:    #b91c1c;
+  --color-peligro-bg: #fee2e2;
+
+  /* Dimensiones del armazón */
+  --spacing-barra:  3.75rem;
+  --spacing-navinf: 5.5rem;
+}
+
+/* Enlace de salto accesible (WCAG 2.4.1 Bypass Blocks) */
+.skip-link {
+  position: fixed;
+  top: -100%;
+  left: 1rem;
+  z-index: 9999;
+  padding: 0.75rem 1.25rem;
+  background-color: #113459;
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3);
+  transition: top 0.15s ease-in-out;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  top: 0.75rem;
+  outline: 3px solid #31BBA1;
+  outline-offset: 2px;
+}
+
+/* Foco de teclado universal visible (WCAG 2.4.7 y 2.4.11) */
+*:focus-visible {
+  outline: 2px solid var(--color-marca-500);
+  outline-offset: 2px;
+}
+
+/* Patrones de puntos decorativos inspirados en la paleta del logo */
+.patron-puntos-menta {
+  background-image: radial-gradient(#31BBA1 2px, transparent 2px);
+  background-size: 12px 12px;
+}
+
+.patron-puntos-marino {
+  background-image: radial-gradient(#113459 2px, transparent 2px);
+  background-size: 12px 12px;
+}
+
+/* Área segura en dispositivos móviles para el dock flotante PWA */
+.safe-bottom-dock {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+/* Respeto estricto por reducción de movimiento del sistema (WCAG 2.3.3) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
