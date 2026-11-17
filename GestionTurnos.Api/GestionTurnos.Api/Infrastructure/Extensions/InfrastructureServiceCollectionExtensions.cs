@@ -91,7 +91,8 @@ public static class InfrastructureServiceCollectionExtensions
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
-                $"No se encontró la cadena de conexión '{dbSettings.ConnectionStringName}' en ConnectionStrings.");
+                $"No se encontró la cadena de conexión '{dbSettings.ConnectionStringName}' en ConnectionStrings. " +
+                "En desarrollo, ejecute ./setup-dev.sh (o .\\setup-dev.ps1) en la raíz del repositorio para configurarla.");
         }
 
         if (dbSettings.EsPostgreSql)
