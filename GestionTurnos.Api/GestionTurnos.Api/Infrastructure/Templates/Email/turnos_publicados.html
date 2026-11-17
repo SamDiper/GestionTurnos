@@ -1,0 +1,21 @@
+<p style="margin:0 0 16px;">Hola, {{ modelo.nombre | html.escape }}:</p>
+<p style="margin:0 0 16px;">Se publicó su programación de turnos del <strong>{{ modelo.desde | html.escape }}</strong> al <strong>{{ modelo.hasta | html.escape }}</strong>.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;margin:0 0 20px;">
+  <tr style="background-color:#f3f4f6;">
+    <th align="left" style="padding:8px;border-bottom:1px solid #e5e7eb;">Fecha</th>
+    <th align="left" style="padding:8px;border-bottom:1px solid #e5e7eb;">Turno</th>
+    <th align="left" style="padding:8px;border-bottom:1px solid #e5e7eb;">Horario</th>
+  </tr>
+  {{ for t in modelo.turnos }}
+  <tr>
+    <td style="padding:8px;border-bottom:1px solid #e5e7eb;">{{ t.fecha | html.escape }}</td>
+    <td style="padding:8px;border-bottom:1px solid #e5e7eb;">{{ t.turno | html.escape }}</td>
+    <td style="padding:8px;border-bottom:1px solid #e5e7eb;">{{ t.horario | html.escape }}</td>
+  </tr>
+  {{ end }}
+</table>
+{{ if sistema.url }}
+<p style="margin:0;text-align:center;">
+  <a href="{{ sistema.url | html.escape }}" style="display:inline-block;padding:12px 24px;background-color:#1e3a5f;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Ver mi calendario</a>
+</p>
+{{ end }}

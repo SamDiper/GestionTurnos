@@ -1,0 +1,7 @@
+<p style="margin:0 0 16px;">Hola, {{ modelo.nombre | html.escape }}:</p>
+<p style="margin:0 0 16px;">{{ modelo.mensaje | html.escape }}</p>
+<p style="margin:24px 0;text-align:center;">
+  <span style="display:inline-block;padding:14px 28px;background-color:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;font-size:30px;letter-spacing:8px;font-weight:700;font-family:Consolas,Menlo,monospace;color:#1e3a5f;">{{ modelo.codigo | html.escape }}</span>
+</p>
+<p style="margin:0 0 16px;">El código vence en <strong>{{ modelo.minutos_vigencia }} minutos</strong> y solo puede usarse una vez.</p>
+<p style="margin:0;color:#b91c1c;font-size:13px;">Nunca comparta este código. El personal del sistema jamás se lo pedirá. Si usted no intentó ingresar, cambie su contraseña.</p>

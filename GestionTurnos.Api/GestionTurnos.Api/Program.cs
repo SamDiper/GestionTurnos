@@ -21,6 +21,7 @@ builder.Host.UseSerilog((context, configuration) =>
 builder.Services.AddPresentation(builder.Configuration);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
+builder.Services.AddNotificacionesCorreo(builder.Configuration); // Después de AddApplication (orden de behaviors)
 builder.Services.AddSecurity(builder.Configuration);
 
 // 3. Data Protection con persistencia en SQL Server

@@ -48,4 +48,9 @@
     <ProjectReference Include="..\GestionTurnos.Shared\GestionTurnos.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Plantillas de correo embebidas: viajan dentro del ensamblado publicado (recurso "Email.{nombre}.html"). -->
+    <EmbeddedResource Include="Infrastructure/Templates/Email/*.html" LogicalName="Email.%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

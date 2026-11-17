@@ -1,0 +1,13 @@
+<p style="margin:0 0 16px;">Hola, {{ modelo.nombre | html.escape }}:</p>
+<p style="margin:0 0 16px;">Su solicitud de registro fue <strong style="color:#15803d;">aprobada</strong>. Ya puede iniciar sesión con su correo y la contraseña que eligió al registrarse.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;font-size:14px;">
+  <tr><td style="padding:4px 16px 4px 0;color:#6b7280;">Usuario</td><td style="padding:4px 0;">{{ modelo.correo | html.escape }}</td></tr>
+  <tr><td style="padding:4px 16px 4px 0;color:#6b7280;">Área</td><td style="padding:4px 0;">{{ modelo.area | html.escape }}</td></tr>
+  <tr><td style="padding:4px 16px 4px 0;color:#6b7280;">Cargo</td><td style="padding:4px 0;">{{ modelo.cargo | html.escape }}</td></tr>
+  <tr><td style="padding:4px 16px 4px 0;color:#6b7280;">Fecha de ingreso</td><td style="padding:4px 0;">{{ modelo.fecha_ingreso | html.escape }}</td></tr>
+</table>
+{{ if sistema.url }}
+<p style="margin:0;text-align:center;">
+  <a href="{{ sistema.url | html.escape }}" style="display:inline-block;padding:12px 24px;background-color:#1e3a5f;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Ingresar al sistema</a>
+</p>
+{{ end }}

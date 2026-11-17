@@ -97,13 +97,15 @@ public abstract class BaseApiController : ControllerBase
                 CreateProblem(
                     StatusCodes.Status404NotFound,
                     "Recurso no encontrado",
-                    error.Message),
+                    error.Message,
+                    error.Code),
 
             ErrorType.Conflict =>
                 CreateProblem(
                     StatusCodes.Status409Conflict,
                     "Conflicto",
-                    error.Message),
+                    error.Message,
+                    error.Code),
 
             // Con cuerpo ProblemDetails: Unauthorized()/Forbid() responden vacío y el cliente perdía
             // mensajes como "Tu registro está pendiente de aprobación" o el motivo de rechazo.
@@ -111,26 +113,30 @@ public abstract class BaseApiController : ControllerBase
                 CreateProblem(
                     StatusCodes.Status401Unauthorized,
                     "No autorizado",
-                    error.Message),
+                    error.Message,
+                    error.Code),
 
             ErrorType.Forbidden =>
                 CreateProblem(
                     StatusCodes.Status403Forbidden,
                     "Acceso denegado",
-                    error.Message),
+                    error.Message,
+                    error.Code),
 
             _ =>
                 CreateProblem(
                     StatusCodes.Status400BadRequest,
                     "Solicitud inválida",
-                    error.Message)
+                    error.Message,
+                    error.Code)
         };
     }
 
     private IActionResult CreateProblem(
         int statusCode,
         string title,
-        string detail)
+        string detail,
+        string? code = null)
     {
         var problem = new ProblemDetails
         {
@@ -141,6 +147,12 @@ public abstract class BaseApiController : ControllerBase
         };
 
         problem.Extensions["traceId"] = HttpContext.TraceIdentifier;
+
+        // Código estable del error (p. ej. "Auth.SegundoFactorRequerido") para que el cliente decida sin comparar textos.
+        if (!string.IsNullOrEmpty(code))
+        {
+            problem.Extensions["code"] = code;
+        }
 
         return StatusCode(statusCode, problem);
     }

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>{{ asunto | html.escape }}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2937;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6;padding:24px 12px;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
+        <tr>
+          <td style="background-color:#1e3a5f;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:600;">
+            {{ sistema.nombre | html.escape }}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px 24px;font-size:15px;line-height:1.6;">
+            {{ contenido }}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 24px;background-color:#f9fafb;color:#6b7280;font-size:12px;line-height:1.5;">
+            Este es un mensaje automático de {{ sistema.nombre | html.escape }}; por favor no responda a este correo.<br>
+            &copy; {{ sistema.anio }} {{ sistema.nombre | html.escape }}
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

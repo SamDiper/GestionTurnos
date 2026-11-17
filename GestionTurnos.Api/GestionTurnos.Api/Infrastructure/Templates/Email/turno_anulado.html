@@ -1,0 +1,12 @@
+<p style="margin:0 0 16px;">Hola, {{ modelo.nombre | html.escape }}:</p>
+<p style="margin:0 0 16px;">El siguiente turno publicado fue <strong style="color:#b91c1c;">anulado</strong>:</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 16px;font-size:14px;">
+  <tr><td style="padding:4px 16px 4px 0;color:#6b7280;">Fecha</td><td style="padding:4px 0;">{{ modelo.turno.fecha | html.escape }}</td></tr>
+  <tr><td style="padding:4px 16px 4px 0;color:#6b7280;">Turno</td><td style="padding:4px 0;">{{ modelo.turno.turno | html.escape }}</td></tr>
+  <tr><td style="padding:4px 16px 4px 0;color:#6b7280;">Horario</td><td style="padding:4px 0;">{{ modelo.turno.horario | html.escape }}</td></tr>
+</table>
+{{ if modelo.motivo != "" }}
+<p style="margin:0 0 8px;color:#6b7280;font-size:14px;">Motivo:</p>
+<p style="margin:0 0 16px;padding:12px 16px;background-color:#f9fafb;border-left:4px solid #9ca3af;">{{ modelo.motivo | html.escape }}</p>
+{{ end }}
+<p style="margin:0;">Consulte su calendario para ver su programación vigente.</p>
