@@ -53,7 +53,7 @@ public sealed class ConsultarBitacoraQueryHandler
         ConsultarBitacoraQuery request,
         CancellationToken cancellationToken)
     {
-        int pageNumber = Math.Max(request.PageNumber, 1);
+        int pageNumber = Paginacion.NormalizarPagina(request.PageNumber);
         int pageSize = Math.Clamp(request.PageSize, 1, 50);
 
         IQueryable<BitacoraNegocio> query = _context.BitacoraNegocio.AsNoTracking();
@@ -168,7 +168,7 @@ public sealed class ObtenerHistorialRegistroQueryHandler
         ObtenerHistorialRegistroQuery request,
         CancellationToken cancellationToken)
     {
-        int pageNumber = Math.Max(request.PageNumber, 1);
+        int pageNumber = Paginacion.NormalizarPagina(request.PageNumber);
         int pageSize = Math.Clamp(request.PageSize, 1, 50);
 
         var esquema = request.Esquema.Trim().ToLowerInvariant();

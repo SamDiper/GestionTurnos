@@ -91,8 +91,8 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
     /// <inheritdoc />
     public async Task<PagedResult<T>> GetPagedAsync(int pageNumber, int pageSize, Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null, bool asNoTracking = false, CancellationToken cancellationToken = default)
     {
-        pageSize = Math.Min(pageSize, MaxPageSize);
-        pageNumber = Math.Max(pageNumber, 1);
+        pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
+        pageNumber = Paginacion.NormalizarPagina(pageNumber);
 
         IQueryable<T> query = _dbSet;
 
@@ -117,8 +117,8 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
     /// <inheritdoc />
     public async Task<PagedResult<T>> FindPagedAsync(Expression<Func<T, bool>> expression, int pageNumber, int pageSize, Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null, bool asNoTracking = false, CancellationToken cancellationToken = default)
     {
-        pageSize = Math.Min(pageSize, MaxPageSize);
-        pageNumber = Math.Max(pageNumber, 1);
+        pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
+        pageNumber = Paginacion.NormalizarPagina(pageNumber);
 
         IQueryable<T> query = _dbSet.Where(expression);
 
@@ -179,8 +179,8 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
     /// <inheritdoc />
     public async Task<PagedResult<T>> GetPagedWithSpecAsync(ISpecification<T> spec, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
     {
-        pageSize = Math.Min(pageSize, MaxPageSize);
-        pageNumber = Math.Max(pageNumber, 1);
+        pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
+        pageNumber = Paginacion.NormalizarPagina(pageNumber);
 
         var query = ApplySpecification(spec);
         var totalCount = await query.CountAsync(cancellationToken);
