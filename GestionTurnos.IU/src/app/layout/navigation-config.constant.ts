@@ -31,6 +31,13 @@ export const ITEMS_MENU_EMPLEADO: readonly ItemNavegacion[] = [
     seccion: 'empleado',
   },
   {
+    id: 'mi-cambios',
+    etiqueta: 'Cambios de turno',
+    ruta: '/mi/cambios-turno',
+    icono: 'swap',
+    seccion: 'empleado',
+  },
+  {
     id: 'mi-perfil',
     etiqueta: 'Mi perfil',
     ruta: '/mi/perfil',
@@ -42,11 +49,10 @@ export const ITEMS_MENU_EMPLEADO: readonly ItemNavegacion[] = [
 export const ITEMS_MENU_ADMIN: readonly ItemNavegacion[] = [
   { id: 'adm-panel', etiqueta: 'Panel general', ruta: '/admin', icono: 'chart', seccion: 'admin' },
   {
-    id: 'adm-registros',
-    etiqueta: 'Solicitudes registro',
-    ruta: '/admin/registros',
-    icono: 'shield',
-    permiso: PERMISOS.registrosAprobar,
+    id: 'adm-solicitudes',
+    etiqueta: 'Solicitudes',
+    ruta: '/admin/solicitudes',
+    icono: 'inbox',
     seccion: 'admin',
   },
   {
@@ -71,6 +77,14 @@ export const ITEMS_MENU_ADMIN: readonly ItemNavegacion[] = [
     ruta: '/admin/asistencia',
     icono: 'clock',
     permiso: PERMISOS.asistenciaConsultar,
+    seccion: 'admin',
+  },
+  {
+    id: 'adm-configuracion',
+    etiqueta: 'Configuración',
+    ruta: '/admin/configuracion',
+    icono: 'settings',
+    permiso: PERMISOS.parametrosEditar,
     seccion: 'admin',
   },
   {

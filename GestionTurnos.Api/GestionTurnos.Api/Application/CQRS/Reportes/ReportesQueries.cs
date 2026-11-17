@@ -49,7 +49,7 @@ public sealed class ReporteCumplimientoTurnosQueryHandler
         ReporteCumplimientoTurnosQuery request,
         CancellationToken cancellationToken)
     {
-        int pageNumber = Math.Max(request.PageNumber, 1);
+        int pageNumber = Paginacion.NormalizarPagina(request.PageNumber);
         int pageSize = Math.Clamp(request.PageSize, 1, RangoFechasReporte.PageSizeMaximo);
 
         var query = from v in _context.VistaHorasPorTurno.AsNoTracking()

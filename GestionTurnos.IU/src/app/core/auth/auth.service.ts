@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { Observable, catchError, of, tap } from 'rxjs';
+import { Observable, catchError, map, of, tap } from 'rxjs';
 import {
   LoginRequest,
   LoginResponseDto,
@@ -13,8 +13,8 @@ import { AuthStore } from './auth.store';
 const TIPOS_DOC_RESPALDO: readonly TipoDocumentoDto[] = [
   { codTipoDocumento: 'CC', nombre: 'Cédula de Ciudadanía', activo: true },
   { codTipoDocumento: 'CE', nombre: 'Cédula de Extranjería', activo: true },
-  { codTipoDocumento: 'PAS', nombre: 'Pasaporte', activo: true },
-  { codTipoDocumento: 'PEP', nombre: 'Permiso Especial de Permanencia', activo: true },
+  { codTipoDocumento: 'PA', nombre: 'Pasaporte', activo: true },
+  { codTipoDocumento: 'PPT', nombre: 'Permiso por protección temporal', activo: true },
 ];
 
 @Injectable({ providedIn: 'root' })
@@ -35,8 +35,17 @@ export class AuthService {
 
   listarTiposDocumento(): Observable<readonly TipoDocumentoDto[]> {
     return this.api
-      .get<readonly TipoDocumentoDto[]>('/parametrizacion/tipos-documento', { soloActivos: true })
-      .pipe(catchError(() => of(TIPOS_DOC_RESPALDO)));
+      .get<readonly { codigo: string; nombre: string; activo: boolean }[]>(
+        '/parametrizacion/tipos-documento',
+        { soloActivos: true }
+      )
+      .pipe(
+        // La API responde CatalogoItemDto { codigo, nombre, activo }
+        map((lista) =>
+          lista.map((t) => ({ codTipoDocumento: t.codigo, nombre: t.nombre, activo: t.activo }))
+        ),
+        catchError(() => of(TIPOS_DOC_RESPALDO))
+      );
   }
 
   cerrarSesion(): void {

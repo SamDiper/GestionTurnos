@@ -623,7 +623,7 @@ public sealed class ListarSolicitudesVacacionesAdminQueryHandler
         ListarSolicitudesVacacionesAdminQuery request,
         CancellationToken cancellationToken)
     {
-        int pageNumber = Math.Max(request.PageNumber, 1);
+        int pageNumber = Paginacion.NormalizarPagina(request.PageNumber);
         int pageSize = Math.Clamp(request.PageSize, 1, 50);
 
         var query = _context.SolicitudesVacaciones.AsNoTracking();
@@ -699,7 +699,7 @@ public sealed class ListarNovedadesAdminQueryHandler
         ListarNovedadesAdminQuery request,
         CancellationToken cancellationToken)
     {
-        int pageNumber = Math.Max(request.PageNumber, 1);
+        int pageNumber = Paginacion.NormalizarPagina(request.PageNumber);
         int pageSize = Math.Clamp(request.PageSize, 1, 50);
 
         var query = _context.Novedades.AsNoTracking();

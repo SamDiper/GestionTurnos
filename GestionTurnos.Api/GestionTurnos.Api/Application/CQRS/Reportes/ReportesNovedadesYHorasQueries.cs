@@ -57,7 +57,7 @@ public sealed class ReporteHorasPorCategoriaQueryHandler
         ReporteHorasPorCategoriaQuery request,
         CancellationToken cancellationToken)
     {
-        int pageNumber = Math.Max(request.PageNumber, 1);
+        int pageNumber = Paginacion.NormalizarPagina(request.PageNumber);
         int pageSize = Math.Clamp(request.PageSize, 1, RangoFechasReporte.PageSizeMaximo);
         var (desde, hasta) = RangoFechasReporte.AInstantes(_configuration, request.FechaDesde, request.FechaHasta);
 
@@ -195,7 +195,7 @@ public sealed class ReporteSaldosVacacionesQueryHandler
         ReporteSaldosVacacionesQuery request,
         CancellationToken cancellationToken)
     {
-        int pageNumber = Math.Max(request.PageNumber, 1);
+        int pageNumber = Paginacion.NormalizarPagina(request.PageNumber);
         int pageSize = Math.Clamp(request.PageSize, 1, RangoFechasReporte.PageSizeMaximo);
         var fechaDesde = request.FechaDesde;
         var fechaHasta = request.FechaHasta;
@@ -296,7 +296,7 @@ public sealed class ReporteSolicitudesVacacionesQueryHandler
         ReporteSolicitudesVacacionesQuery request,
         CancellationToken cancellationToken)
     {
-        int pageNumber = Math.Max(request.PageNumber, 1);
+        int pageNumber = Paginacion.NormalizarPagina(request.PageNumber);
         int pageSize = Math.Clamp(request.PageSize, 1, RangoFechasReporte.PageSizeMaximo);
 
         var query = _context.SolicitudesVacaciones
@@ -394,7 +394,7 @@ public sealed class ReportePermisosAusenciasQueryHandler
         ReportePermisosAusenciasQuery request,
         CancellationToken cancellationToken)
     {
-        int pageNumber = Math.Max(request.PageNumber, 1);
+        int pageNumber = Paginacion.NormalizarPagina(request.PageNumber);
         int pageSize = Math.Clamp(request.PageSize, 1, RangoFechasReporte.PageSizeMaximo);
         var (desde, hasta) = RangoFechasReporte.AInstantes(_configuration, request.FechaDesde, request.FechaHasta);
 

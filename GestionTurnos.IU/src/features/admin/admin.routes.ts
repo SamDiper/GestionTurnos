@@ -15,15 +15,16 @@ export const ADMIN_ROUTES: Routes = [
       import('./panel/admin-panel.page').then((m) => m.AdminPanelPageComponent),
   },
   {
-    path: 'registros',
-    title: 'Solicitudes de Registro · Gestión de Turnos',
-    canActivate: [sesionActivaGuard, requierePermisoGuard(PERMISOS.registrosAprobar)],
-    data: {
-      titulo: 'Bandeja de solicitudes de registro',
-      descripcion: 'Aprueba o rechaza las solicitudes de registro pendientes.',
-    },
+    path: 'solicitudes',
+    title: 'Solicitudes · Gestión de Turnos',
+    canActivate: [sesionActivaGuard, requiereAlgunPermisoAdminGuard],
     loadComponent: () =>
-      import('../mi/seccion/mi-seccion.page').then((m) => m.MiSeccionPageComponent),
+      import('./solicitudes/solicitudes.page').then((m) => m.SolicitudesPageComponent),
+  },
+  {
+    // Ruta anterior: se conserva para enlaces guardados.
+    path: 'registros',
+    redirectTo: 'solicitudes?tipo=registro',
   },
   {
     path: 'empleados',
@@ -40,12 +41,15 @@ export const ADMIN_ROUTES: Routes = [
     path: 'programacion',
     title: 'Programación de Turnos · Gestión de Turnos',
     canActivate: [sesionActivaGuard, requierePermisoGuard(PERMISOS.turnosProgramar)],
-    data: {
-      titulo: 'Programación y validación de conflictos',
-      descripcion: 'Asignación individual y masiva de turnos, publicación y descansos.',
-    },
     loadComponent: () =>
-      import('../mi/seccion/mi-seccion.page').then((m) => m.MiSeccionPageComponent),
+      import('./programacion/programacion.page').then((m) => m.ProgramacionPageComponent),
+  },
+  {
+    path: 'configuracion',
+    title: 'Configuración · Gestión de Turnos',
+    canActivate: [sesionActivaGuard, requierePermisoGuard(PERMISOS.parametrosEditar)],
+    loadComponent: () =>
+      import('./configuracion/configuracion.page').then((m) => m.ConfiguracionPageComponent),
   },
   {
     path: 'asistencia',

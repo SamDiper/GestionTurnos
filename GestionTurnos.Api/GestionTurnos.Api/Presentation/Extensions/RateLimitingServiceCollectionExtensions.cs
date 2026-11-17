@@ -17,6 +17,9 @@ public static class RateLimitingServiceCollectionExtensions
 
         if (!rateLimitingSettings.EnableRateLimiting)
         {
+            // Program.cs llama siempre a app.UseRateLimiter(): sin este registro vacío
+            // la aplicación no arranca cuando el límite está desactivado.
+            services.AddRateLimiter(_ => { });
             return services;
         }
 

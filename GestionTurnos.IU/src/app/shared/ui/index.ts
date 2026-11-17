@@ -9,3 +9,8 @@ export * from './skeleton/ui-skeleton.component';
 export * from './auth-illustration-placeholder/auth-illustration-placeholder.component';
 export * from './auth-floating-card/auth-floating-card.component';
 export * from './auth-split-layout/auth-split-layout.component';
+export * from './dialog/ui-dialog.component';
+export * from './textarea/ui-notched-textarea.component';
+export * from './check/ui-check.component';
+export * from './tabs/ui-tabs.component';
+export * from './paginador/ui-paginador.component';

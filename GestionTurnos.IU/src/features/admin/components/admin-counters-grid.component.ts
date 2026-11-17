@@ -5,6 +5,7 @@ export interface ContadorAdminItem {
   readonly etiqueta: string;
   readonly valor: number;
   readonly ruta: string;
+  readonly query?: Record<string, string>;
 }
 
 @Component({
@@ -24,6 +25,7 @@ export interface ContadorAdminItem {
           <div class="mt-4">
             <a
               [routerLink]="item.ruta"
+              [queryParams]="item.query"
               class="inline-flex min-h-11 items-center text-xs font-bold text-marca-700 underline underline-offset-4 hover:text-marca-800"
             >
               Gestionar {{ item.etiqueta.toLowerCase() }}

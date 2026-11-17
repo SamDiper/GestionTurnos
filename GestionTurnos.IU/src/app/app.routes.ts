@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { sesionActivaGuard } from './core';
 import { AppShellComponent } from './layout';
 
 /**
@@ -30,6 +31,7 @@ export const routes: Routes = [
       },
       {
         path: 'mi',
+        canActivate: [sesionActivaGuard],
         loadChildren: () => import('../features/mi/mi.routes').then((m) => m.MI_ROUTES),
       },
       {
