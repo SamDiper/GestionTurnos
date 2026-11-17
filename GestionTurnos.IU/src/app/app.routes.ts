@@ -3,7 +3,8 @@ import { AppShellComponent } from './layout';
 
 /**
  * Enrutador general recopilatorio.
- * Delega de forma diferida (lazy loading) las rutas de Autenticación, Empleado (/mi) y Administrador (/admin).
+ * Delega de forma diferida (lazy loading) las rutas de Autenticación, Empleado (/mi) y Administrador (/admin),
+ * y captura rutas no reconocidas redirigiendo a la pantalla 404 personalizada.
  */
 export const routes: Routes = [
   {
@@ -44,7 +45,14 @@ export const routes: Routes = [
     ],
   },
   {
+    path: '404',
+    title: 'Página no encontrada · Gestión de Turnos',
+    loadComponent: () =>
+      import('../features/not-found/not-found.page').then((m) => m.NotFoundPageComponent),
+  },
+  {
     path: '**',
-    redirectTo: 'ingresar',
+    loadComponent: () =>
+      import('../features/not-found/not-found.page').then((m) => m.NotFoundPageComponent),
   },
 ];
