@@ -8,6 +8,9 @@ export interface OpcionSelect {
 @Component({
   selector: 'ui-notched-select',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    class: 'block w-full',
+  },
   template: `
     <div class="w-full">
       <div class="relative mt-1">

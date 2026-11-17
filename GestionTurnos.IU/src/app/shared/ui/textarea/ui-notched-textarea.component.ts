@@ -3,6 +3,9 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 @Component({
   selector: 'ui-notched-textarea',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    class: 'block w-full pt-1.5',
+  },
   template: `
     <div class="w-full">
       <div class="relative mt-1">

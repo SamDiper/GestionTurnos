@@ -3,6 +3,9 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 @Component({
   selector: 'ui-notched-field',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    class: 'block w-full',
+  },
   template: `
     <div class="w-full">
       <div class="relative mt-1">
@@ -39,7 +42,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
           {{ error() }}
         </p>
       } @else if (ayuda()) {
-        <p [id]="id() + '-msg'" class="mt-1.5 text-xs text-slate-600">
+        <p [id]="id() + '-msg'" class="mt-1.5 pb-1 text-xs text-slate-500 leading-normal">
           {{ ayuda() }}
         </p>
       }
