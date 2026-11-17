@@ -5,7 +5,7 @@ import { RegisterPendingNoticeComponent } from './components/register-pending-no
 
 /**
  * Página recopilatoria de Solicitud de Registro (/registro).
- * Ensambla el layout dividido de referencia (ilustración + tarjeta con patrones de puntos)
+ * Ensambla el layout dividido (ilustración oficial + tarjeta flotante)
  * y alterna entre el formulario y el aviso de solicitud pendiente.
  */
 @Component({
@@ -17,8 +17,6 @@ import { RegisterPendingNoticeComponent } from './components/register-pending-no
       <ui-auth-split-layout
         titulo="Solicita tu cuenta"
         subtitulo="Registra tus datos para aprobación del administrador"
-        tituloImagen="Espacio reservado para imagen de referencia (Registro)"
-        detalleImagen="Pegar aquí la ilustración de bienvenida / registro cuando esté lista."
       >
         @if (idSolicitudRecibida(); as idSolicitud) {
           <app-register-pending-notice [idSolicitud]="idSolicitud" />
@@ -32,3 +30,4 @@ import { RegisterPendingNoticeComponent } from './components/register-pending-no
 export class RegisterPageComponent {
   protected readonly idSolicitudRecibida = signal<number | null>(null);
 }
+

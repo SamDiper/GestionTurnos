@@ -4,7 +4,7 @@ import { LoginFormComponent } from './components/login-form.component';
 
 /**
  * Página recopilatoria de Inicio de Sesión (/ingresar).
- * Ensambla el layout dividido de referencia (ilustración + tarjeta flotante) y el formulario de acceso.
+ * Ensambla el layout dividido (ilustración oficial + tarjeta flotante) y el formulario de acceso.
  */
 @Component({
   selector: 'app-login-page',
@@ -15,8 +15,6 @@ import { LoginFormComponent } from './components/login-form.component';
       <ui-auth-split-layout
         titulo="Ingresa a tu cuenta"
         subtitulo="Consulta tus turnos, asistencia y solicitudes laborales"
-        tituloImagen="Espacio reservado para imagen de referencia (Login)"
-        detalleImagen="Pegar aquí la ilustración principal de acceso cuando esté lista."
       >
         <app-login-form />
       </ui-auth-split-layout>
