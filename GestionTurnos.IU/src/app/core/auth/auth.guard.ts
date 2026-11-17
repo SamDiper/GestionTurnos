@@ -38,3 +38,16 @@ export const requiereAlgunPermisoAdminGuard: CanActivateFn = () => {
   }
   return store.tieneAlgunPermisoAdmin() ? true : router.createUrlTree(['/sin-permiso']);
 };
+
+export const soloEmpleadoGuard: CanActivateFn = () => {
+  const store = inject(AuthStore);
+  const router = inject(Router);
+  if (!store.autenticado()) {
+    return router.createUrlTree(['/ingresar']);
+  }
+  // Si es administrador, únicamente tiene acceso al panel administrativo
+  if (store.esAdmin()) {
+    return router.createUrlTree(['/admin']);
+  }
+  return true;
+};

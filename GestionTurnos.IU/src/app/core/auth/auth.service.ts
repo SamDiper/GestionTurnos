@@ -54,8 +54,6 @@ export class AuthService {
   }
 
   rutaInicialSegunPermisos(): string {
-    return this.store.tieneAlgunPermisoAdmin() && !this.store.usuario()?.idEmpleado
-      ? '/admin'
-      : '/mi';
+    return this.store.esAdmin() ? '/admin' : '/mi';
   }
 }

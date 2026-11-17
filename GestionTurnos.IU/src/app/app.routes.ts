@@ -1,5 +1,6 @@
+import { inject } from '@angular/core';
 import { Routes } from '@angular/router';
-import { sesionActivaGuard } from './core';
+import { AuthStore, sesionActivaGuard, soloEmpleadoGuard } from './core';
 import { AppShellComponent } from './layout';
 
 /**
@@ -26,12 +27,15 @@ export const routes: Routes = [
     children: [
       {
         path: '',
-        redirectTo: 'mi',
         pathMatch: 'full',
+        redirectTo: () => {
+          const store = inject(AuthStore);
+          return store.esAdmin() ? 'admin' : 'mi';
+        },
       },
       {
         path: 'mi',
-        canActivate: [sesionActivaGuard],
+        canActivate: [sesionActivaGuard, soloEmpleadoGuard],
         loadChildren: () => import('../features/mi/mi.routes').then((m) => m.MI_ROUTES),
       },
       {

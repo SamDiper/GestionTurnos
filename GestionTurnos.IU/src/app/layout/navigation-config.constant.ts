@@ -98,7 +98,7 @@ export const ITEMS_MENU_ADMIN: readonly ItemNavegacion[] = [
 ];
 
 /**
- * Los 5 accesos del dock flotante inferior PWA (inspirado en el diseño de referencia).
+ * Los 5 accesos del dock flotante inferior PWA para el rol Empleado.
  */
 export const ITEMS_DOCK_MOVIL: readonly ItemNavegacion[] = [
   { id: 'dock-inicio', etiqueta: 'Inicio', ruta: '/mi', icono: 'home', seccion: 'empleado' },
@@ -125,4 +125,40 @@ export const ITEMS_DOCK_MOVIL: readonly ItemNavegacion[] = [
     seccion: 'empleado',
   },
   { id: 'dock-perfil', etiqueta: 'Mi perfil', ruta: '/mi/perfil', icono: 'user', seccion: 'empleado' },
+];
+
+/**
+ * Los 5 accesos del dock flotante inferior PWA exclusivos para el rol Administrador.
+ */
+export const ITEMS_DOCK_ADMIN: readonly ItemNavegacion[] = [
+  { id: 'dock-adm-panel', etiqueta: 'Panel', ruta: '/admin', icono: 'home', seccion: 'admin' },
+  {
+    id: 'dock-adm-solicitudes',
+    etiqueta: 'Solicitudes',
+    ruta: '/admin/solicitudes',
+    icono: 'inbox',
+    seccion: 'admin',
+  },
+  {
+    id: 'dock-adm-programar',
+    etiqueta: 'Programar',
+    ruta: '/admin/programacion',
+    icono: 'plus',
+    seccion: 'admin',
+    destacadoCentral: true,
+  },
+  {
+    id: 'dock-adm-empleados',
+    etiqueta: 'Empleados',
+    ruta: '/admin/empleados',
+    icono: 'users',
+    seccion: 'admin',
+  },
+  {
+    id: 'dock-adm-config',
+    etiqueta: 'Ajustes',
+    ruta: '/admin/configuracion',
+    icono: 'settings',
+    seccion: 'admin',
+  },
 ];

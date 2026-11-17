@@ -27,7 +27,7 @@ import {
 
       <div class="flex items-center gap-3">
         <a
-          routerLink="/mi"
+          [routerLink]="store.esAdmin() ? '/admin' : '/mi'"
           class="flex min-h-11 items-center gap-2.5 rounded-lg px-1 font-bold tracking-tight text-[#113459]"
         >
           <img

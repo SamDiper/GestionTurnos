@@ -1,16 +1,14 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { AuthStore } from '../../core';
 import { UiIconComponent } from '../../shared/ui';
-import { ITEMS_DOCK_MOVIL } from '../navigation-config.constant';
+import { ITEMS_DOCK_ADMIN, ITEMS_DOCK_MOVIL } from '../navigation-config.constant';
 
 /**
  * Barra de navegación inferior flotante tipo cápsula (PWA Mobile Dock).
- * Diseño exacto según referencia visual de estilos:
- * - Cápsula blanca flotante con bordes redondeados completos y sombra difuminada suave
- * - Botón central circular turquesa con gradiente (#1D768A a #31BBA1) y sombra con aura suave
- * - Íconos inactivos en gris azulado (#96a1b3 / slate-400)
- * - Ícono activo con cápsula circular azulada suave (#dbe8f4 / #e0f2fe) y glifo en azul marino (#113459 / #0c4a6e)
- * - Punto indicador inferior en azul brillante (#1D768A / #0284c7)
+ * Dinámico según el rol del usuario:
+ * - Rol Empleado: Inicio (/mi), Turnos (/mi/calendario), Marcar (+) (/mi/asistencia), Novedades (/mi/novedades), Perfil (/mi/perfil)
+ * - Rol Administrador: Panel (/admin), Solicitudes (/admin/solicitudes), Programar (+) (/admin/programacion), Empleados (/admin/empleados), Ajustes (/admin/configuracion)
  */
 @Component({
   selector: 'app-mobile-dock',
@@ -24,7 +22,7 @@ import { ITEMS_DOCK_MOVIL } from '../navigation-config.constant';
       <ul
         class="pointer-events-auto flex w-full max-w-md items-center justify-around rounded-full border border-slate-200/80 bg-white/95 px-3 py-2 shadow-[0_16px_40px_-6px_rgba(17,52,89,0.18),0_4px_12px_rgba(0,0,0,0.06)] backdrop-blur-md"
       >
-        @for (item of itemsDock; track item.id) {
+        @for (item of itemsDock(); track item.id) {
           <li class="relative flex flex-col items-center justify-center">
             @if (item.destacadoCentral) {
               <!-- Botón central flotante con gradiente turquesa/menta y sombra suave -->
@@ -40,7 +38,7 @@ import { ITEMS_DOCK_MOVIL } from '../navigation-config.constant';
               <!-- Íconos de navegación con estado activo circular suave y punto indicador -->
               <a
                 [routerLink]="item.ruta"
-                [routerLinkActiveOptions]="{ exact: item.ruta === '/mi' }"
+                [routerLinkActiveOptions]="{ exact: item.ruta === '/mi' || item.ruta === '/admin' }"
                 #rla="routerLinkActive"
                 routerLinkActive="active-dock-item"
                 [attr.aria-label]="item.etiqueta"
@@ -70,5 +68,9 @@ import { ITEMS_DOCK_MOVIL } from '../navigation-config.constant';
   `,
 })
 export class MobileDockComponent {
-  protected readonly itemsDock = ITEMS_DOCK_MOVIL;
+  private readonly auth = inject(AuthStore);
+
+  protected readonly itemsDock = computed(() =>
+    this.auth.esAdmin() ? ITEMS_DOCK_ADMIN : ITEMS_DOCK_MOVIL
+  );
 }

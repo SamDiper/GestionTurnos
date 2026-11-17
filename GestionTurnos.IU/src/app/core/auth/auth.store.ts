@@ -19,6 +19,10 @@ export class AuthStore {
   readonly tieneAlgunPermisoAdmin = computed(() =>
     Object.values(PERMISOS).some((codigo) => this.permisos().has(codigo))
   );
+  readonly esAdmin = computed(() => {
+    const rol = this._usuario()?.rol?.toLowerCase() ?? '';
+    return rol === 'administrador' || rol === 'admin' || this.tieneAlgunPermisoAdmin();
+  });
 
   puede(codigoPermiso: string): boolean {
     return this.permisos().has(codigoPermiso);
