@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { UiEmptyStateComponent } from '../../../app/shared/ui';
 import { MarcajeRapidoCardComponent } from '../components/marcaje-rapido-card.component';
 
@@ -8,7 +8,7 @@ import { MarcajeRapidoCardComponent } from '../components/marcaje-rapido-card.co
  */
 @Component({
   selector: 'app-mi-seccion-page',
-  imports: [RouterLink, UiEmptyStateComponent, MarcajeRapidoCardComponent],
+  imports: [UiEmptyStateComponent, MarcajeRapidoCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section aria-labelledby="titulo-seccion-empleado" class="space-y-6">
@@ -24,12 +24,7 @@ import { MarcajeRapidoCardComponent } from '../components/marcaje-rapido-card.co
       }
 
       <ui-empty-state [titulo]="titulo" [descripcion]="descripcion">
-        <a
-          routerLink="/mi"
-          class="inline-flex min-h-11 items-center rounded-lg bg-marca-600 px-4 py-2 text-xs font-bold text-white hover:bg-marca-700"
-        >
-          Volver al resumen de hoy
-        </a>
+        <p class="text-sm font-medium text-slate-500">Aún no hay registros en esta sección.</p>
       </ui-empty-state>
     </section>
   `,

@@ -54,7 +54,7 @@ import { formatearFecha, hoyIso } from '../../../../app/shared/utils/formato';
                 </td>
               </tr>
             } @empty {
-              <tr><td colspan="3" class="py-6 text-center text-slate-600">No hay festivos registrados en {{ anio() }}.</td></tr>
+              <tr><td colspan="3" class="py-6 text-center text-slate-600">Aún no hay registros para el año {{ anio() }}.</td></tr>
             }
           </tbody>
         </table>

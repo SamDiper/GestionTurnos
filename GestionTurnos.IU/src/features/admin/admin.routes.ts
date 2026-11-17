@@ -30,12 +30,8 @@ export const ADMIN_ROUTES: Routes = [
     path: 'empleados',
     title: 'Gestión de Empleados · Gestión de Turnos',
     canActivate: [sesionActivaGuard, requierePermisoGuard(PERMISOS.empleadosGestionar)],
-    data: {
-      titulo: 'Directorio de empleados',
-      descripcion: 'Administración de personal, áreas, cargos y estados.',
-    },
     loadComponent: () =>
-      import('../mi/seccion/mi-seccion.page').then((m) => m.MiSeccionPageComponent),
+      import('./empleados/empleados.page').then((m) => m.EmpleadosPageComponent),
   },
   {
     path: 'programacion',

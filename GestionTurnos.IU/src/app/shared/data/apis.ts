@@ -7,6 +7,8 @@ import {
   CatalogoItem,
   CategoriaHora,
   ConflictosSolicitudVacaciones,
+  CrearEmpleadoDto,
+  ActualizarEmpleadoDto,
   DiaFestivo,
   Empleado,
   EventoCalendario,
@@ -108,6 +110,21 @@ export class OrganizacionApi {
   }
   listarEmpleados(params: Params = {}): Observable<PaginaApi<Empleado>> {
     return this.api.get('/empleados', { estado: 'ACTIVO', pageSize: 100, ...params });
+  }
+  obtenerEmpleado(id: number): Observable<Empleado> {
+    return this.api.get(`/empleados/${id}`);
+  }
+  crearEmpleado(datos: CrearEmpleadoDto): Observable<{ idEmpleado: number }> {
+    return this.api.post('/empleados', datos);
+  }
+  actualizarEmpleado(id: number, datos: ActualizarEmpleadoDto): Observable<void> {
+    return this.api.put(`/empleados/${id}`, datos);
+  }
+  desactivarEmpleado(id: number, fechaRetiro: string): Observable<void> {
+    return this.api.post(`/empleados/${id}/desactivar`, { fechaRetiro });
+  }
+  reactivarEmpleado(id: number): Observable<void> {
+    return this.api.post(`/empleados/${id}/reactivar`, {});
   }
 }
 

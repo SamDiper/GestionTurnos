@@ -80,7 +80,7 @@ const VACIO: TipoNovedad = {
                 </td>
               </tr>
             } @empty {
-              <tr><td colspan="8" class="py-6 text-center text-slate-600">Sin registros.</td></tr>
+              <tr><td colspan="8" class="py-6 text-center text-slate-600">Aún no hay registros.</td></tr>
             }
           </tbody>
         </table>

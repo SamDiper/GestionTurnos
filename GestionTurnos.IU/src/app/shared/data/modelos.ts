@@ -88,11 +88,47 @@ export interface Empleado {
   readonly numeroDocumento: string;
   readonly nombres: string;
   readonly apellidos: string;
+  readonly correoContacto?: string | null;
+  readonly telefono?: string | null;
+  readonly direccion?: string | null;
   readonly idArea: number;
   readonly nombreArea: string;
+  readonly idSucursal?: number;
   readonly nombreSucursal: string;
+  readonly idCargo: number;
   readonly nombreCargo: string;
+  readonly codTipoContrato?: string | null;
+  readonly fechaIngreso?: string;
+  readonly fechaRetiro?: string | null;
   readonly codEstadoEmpleado: string;
+}
+
+export interface CrearEmpleadoDto {
+  readonly codTipoDocumento: string;
+  readonly numeroDocumento: string;
+  readonly nombres: string;
+  readonly apellidos: string;
+  readonly correoContacto?: string | null;
+  readonly telefono?: string | null;
+  readonly direccion?: string | null;
+  readonly idArea: number;
+  readonly idCargo: number;
+  readonly codTipoContrato?: string | null;
+  readonly fechaIngreso: string;
+}
+
+export interface ActualizarEmpleadoDto {
+  readonly codTipoDocumento: string;
+  readonly numeroDocumento: string;
+  readonly nombres: string;
+  readonly apellidos: string;
+  readonly correoContacto?: string | null;
+  readonly telefono?: string | null;
+  readonly direccion?: string | null;
+  readonly idArea: number;
+  readonly idCargo: number;
+  readonly codTipoContrato?: string | null;
+  readonly fechaIngreso: string;
 }
 
 export interface PerfilEmpleado {

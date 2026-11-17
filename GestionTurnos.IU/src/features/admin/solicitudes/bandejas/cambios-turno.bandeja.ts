@@ -78,7 +78,7 @@ import { formatearFecha, formatearFechaHora } from '../../../../app/shared/utils
                 </td>
               </tr>
             } @empty {
-              <tr><td colspan="5" class="py-6 text-center text-slate-600">No hay solicitudes de cambio con este filtro.</td></tr>
+              <tr><td colspan="5" class="py-6 text-center text-slate-600">Aún no hay registros con este filtro.</td></tr>
             }
           </tbody>
         </table>

@@ -75,7 +75,7 @@ const AYUDA_TIPO: Record<Parametro['tipoDato'], string> = {
                 </td>
               </tr>
             } @empty {
-              <tr><td colspan="5" class="py-6 text-center text-slate-600">Sin parámetros.</td></tr>
+              <tr><td colspan="5" class="py-6 text-center text-slate-600">Aún no hay registros con este filtro.</td></tr>
             }
           </tbody>
         </table>
