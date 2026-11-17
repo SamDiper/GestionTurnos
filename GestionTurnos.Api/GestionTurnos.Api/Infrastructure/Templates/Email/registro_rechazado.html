@@ -1,0 +1,5 @@
+<p style="margin:0 0 16px;">Hola, {{ modelo.nombre | html.escape }}:</p>
+<p style="margin:0 0 16px;">Revisamos su solicitud de registro y en esta ocasión <strong>no fue aprobada</strong>.</p>
+<p style="margin:0 0 8px;color:#6b7280;font-size:14px;">Motivo indicado por el administrador:</p>
+<p style="margin:0 0 16px;padding:12px 16px;background-color:#fef2f2;border-left:4px solid #b91c1c;">{{ modelo.motivo | html.escape }}</p>
+<p style="margin:0;">Si considera que se trata de un error, comuníquese con el área de talento humano.</p>
