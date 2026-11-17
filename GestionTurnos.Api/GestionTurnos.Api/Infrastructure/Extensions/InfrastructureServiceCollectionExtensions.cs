@@ -34,18 +34,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddDbContext<GestionTurnosContext>((sp, options) =>
         {
             var interceptor = sp.GetRequiredService<SessionAndTimeZoneInterceptor>();
-            options.UseSqlServer(connectionString, sqlOptions =>
-            {
-                sqlOptions.CommandTimeout(dbSettings.CommandTimeoutSeconds);
-                if (dbSettings.EnableRetryOnFailure)
-                {
-                    sqlOptions.EnableRetryOnFailure(
-                        maxRetryCount: dbSettings.MaxRetryCount,
-                        maxRetryDelay: TimeSpan.FromSeconds(dbSettings.MaxRetryDelaySeconds),
-                        errorNumbersToAdd: null);
-                }
-            })
-            .AddInterceptors(interceptor);
+            ConfigurarProveedor(options, connectionString, dbSettings, conReintentos: dbSettings.EnableRetryOnFailure)
+                .AddInterceptors(interceptor);
 
             if (dbSettings.EnableSensitiveDataLogging)
             {
@@ -58,14 +48,9 @@ public static class InfrastructureServiceCollectionExtensions
             }
         });
 
-        // Contexto aislado para persistencia de DataProtection en SQL Server
+        // Contexto aislado para persistencia de DataProtection (misma base y proveedor)
         services.AddDbContext<DataProtectionKeyContext>(options =>
-        {
-            options.UseSqlServer(connectionString, sqlOptions =>
-            {
-                sqlOptions.CommandTimeout(dbSettings.CommandTimeoutSeconds);
-            });
-        });
+            ConfigurarProveedor(options, connectionString, dbSettings, conReintentos: false));
 
         // Repositorios e Inyección de Dependencias
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
@@ -92,5 +77,48 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSharedFtp(configuration);
 
         return services;
+    }
+
+    /// <summary>
+    /// Selecciona el proveedor según <c>Database:Provider</c>: SQL Server (por defecto) o PostgreSQL.
+    /// </summary>
+    private static DbContextOptionsBuilder ConfigurarProveedor(
+        DbContextOptionsBuilder options,
+        string? connectionString,
+        DatabaseSettings dbSettings,
+        bool conReintentos)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                $"No se encontró la cadena de conexión '{dbSettings.ConnectionStringName}' en ConnectionStrings.");
+        }
+
+        if (dbSettings.EsPostgreSql)
+        {
+            return options.UseNpgsql(connectionString, npgsqlOptions =>
+            {
+                npgsqlOptions.CommandTimeout(dbSettings.CommandTimeoutSeconds);
+                if (conReintentos)
+                {
+                    npgsqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: dbSettings.MaxRetryCount,
+                        maxRetryDelay: TimeSpan.FromSeconds(dbSettings.MaxRetryDelaySeconds),
+                        errorCodesToAdd: null);
+                }
+            });
+        }
+
+        return options.UseSqlServer(connectionString, sqlOptions =>
+        {
+            sqlOptions.CommandTimeout(dbSettings.CommandTimeoutSeconds);
+            if (conReintentos)
+            {
+                sqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: dbSettings.MaxRetryCount,
+                    maxRetryDelay: TimeSpan.FromSeconds(dbSettings.MaxRetryDelaySeconds),
+                    errorNumbersToAdd: null);
+            }
+        });
     }
 }
