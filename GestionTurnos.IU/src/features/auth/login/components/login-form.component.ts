@@ -105,7 +105,7 @@ export class LoginFormComponent {
       .subscribe({
         next: () => {
           this.enviando.set(false);
-          this.toast.exito('Bienvenido al sistema de Gestión de Turnos.');
+          this.toast.exito('Bienvenido a TKeeper.');
           void this.router.navigate([this.auth.rutaInicialSegunPermisos()]);
         },
         error: (err: unknown) => {

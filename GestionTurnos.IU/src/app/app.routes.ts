@@ -11,13 +11,13 @@ import { AppShellComponent } from './layout';
 export const routes: Routes = [
   {
     path: 'ingresar',
-    title: 'Ingresar · Gestión de Turnos',
+    title: 'Ingresar · TKeeper',
     loadComponent: () =>
       import('../features/auth/login/login.page').then((m) => m.LoginPageComponent),
   },
   {
     path: 'registro',
-    title: 'Solicitar Registro · Gestión de Turnos',
+    title: 'Solicitar Registro · TKeeper',
     loadComponent: () =>
       import('../features/auth/register/register.page').then((m) => m.RegisterPageComponent),
   },
@@ -44,7 +44,7 @@ export const routes: Routes = [
       },
       {
         path: 'sin-permiso',
-        title: 'Acceso Restringido · Gestión de Turnos',
+        title: 'Acceso Restringido · TKeeper',
         loadComponent: () =>
           import('../features/sin-permiso/sin-permiso.page').then((m) => m.SinPermisoPageComponent),
       },
@@ -52,13 +52,13 @@ export const routes: Routes = [
   },
   {
     path: 'totem-qr',
-    title: 'Tótem de Asistencia · Gestión de Turnos',
+    title: 'Tótem de Asistencia · TKeeper',
     loadComponent: () =>
       import('../features/totem/totem-qr.page').then((m) => m.TotemQrPageComponent),
   },
   {
     path: '404',
-    title: 'Página no encontrada · Gestión de Turnos',
+    title: 'Página no encontrada · TKeeper',
     loadComponent: () =>
       import('../features/not-found/not-found.page').then((m) => m.NotFoundPageComponent),
   },

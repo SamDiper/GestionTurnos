@@ -1,4 +1,4 @@
-﻿namespace GestionTurnos.Shared.EMAIL
+namespace GestionTurnos.Shared.EMAIL
 {
     /// <summary>
     /// Configuración fuertemente tipada del servidor SMTP de salida.
@@ -37,7 +37,7 @@
         public string FromAddress { get; set; } = string.Empty;
 
         /// <summary>Nombre visible del remitente.</summary>
-        public string FromName { get; set; } = "Gestión de Turnos";
+        public string FromName { get; set; } = "TKeeper";
 
         /// <summary>Dirección opcional para respuestas (Reply-To). Útil si el remitente es un buzón no monitoreado.</summary>
         public string? ReplyToAddress { get; set; }

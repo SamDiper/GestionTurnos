@@ -1,7 +1,7 @@
 {
-  "name": "Gestión de Turnos y Asistencia",
-  "short_name": "Turnos",
-  "description": "Consulta de turnos, marcaje de asistencia, vacaciones y solicitudes laborales.",
+  "name": "TKeeper - Control de Asistencia y Turnos",
+  "short_name": "TKeeper",
+  "description": "Consulta de turnos, marcaje de asistencia con QR, vacaciones y gestión laboral con TKeeper.",
   "lang": "es-CO",
   "dir": "ltr",
   "theme_color": "#1D768A",

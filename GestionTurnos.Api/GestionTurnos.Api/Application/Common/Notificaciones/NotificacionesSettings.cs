@@ -12,7 +12,7 @@ public sealed class NotificacionesSettings
     public bool Habilitado { get; set; } = true;
 
     /// <summary>Nombre del sistema mostrado en el encabezado y pie de los correos.</summary>
-    public string NombreSistema { get; set; } = "Gestión de Turnos";
+    public string NombreSistema { get; set; } = "TKeeper";
 
     /// <summary>URL pública del frontend (botón "Ingresar al sistema"). Vacío = el correo no muestra el botón.</summary>
     public string? UrlAplicacion { get; set; }

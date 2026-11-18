@@ -9,14 +9,14 @@ import {
 export const ADMIN_ROUTES: Routes = [
   {
     path: '',
-    title: 'Panel Administrativo · Gestión de Turnos',
+    title: 'Panel Administrativo · TKeeper',
     canActivate: [sesionActivaGuard, requiereAlgunPermisoAdminGuard],
     loadComponent: () =>
       import('./panel/admin-panel.page').then((m) => m.AdminPanelPageComponent),
   },
   {
     path: 'solicitudes',
-    title: 'Solicitudes · Gestión de Turnos',
+    title: 'Solicitudes · TKeeper',
     canActivate: [sesionActivaGuard, requiereAlgunPermisoAdminGuard],
     loadComponent: () =>
       import('./solicitudes/solicitudes.page').then((m) => m.SolicitudesPageComponent),
@@ -28,28 +28,28 @@ export const ADMIN_ROUTES: Routes = [
   },
   {
     path: 'empleados',
-    title: 'Gestión de Empleados · Gestión de Turnos',
+    title: 'Gestión de Empleados · TKeeper',
     canActivate: [sesionActivaGuard, requierePermisoGuard(PERMISOS.empleadosGestionar)],
     loadComponent: () =>
       import('./empleados/empleados.page').then((m) => m.EmpleadosPageComponent),
   },
   {
     path: 'programacion',
-    title: 'Programación de Turnos · Gestión de Turnos',
+    title: 'Programación de Turnos · TKeeper',
     canActivate: [sesionActivaGuard, requierePermisoGuard(PERMISOS.turnosProgramar)],
     loadComponent: () =>
       import('./programacion/programacion.page').then((m) => m.ProgramacionPageComponent),
   },
   {
     path: 'configuracion',
-    title: 'Configuración · Gestión de Turnos',
+    title: 'Configuración · TKeeper',
     canActivate: [sesionActivaGuard, requierePermisoGuard(PERMISOS.parametrosEditar)],
     loadComponent: () =>
       import('./configuracion/configuracion.page').then((m) => m.ConfiguracionPageComponent),
   },
   {
     path: 'asistencia',
-    title: 'Control de Asistencia · Gestión de Turnos',
+    title: 'Control de Asistencia · TKeeper',
     canActivate: [sesionActivaGuard, requierePermisoGuard(PERMISOS.asistenciaConsultar)],
     loadComponent: () =>
       import('./asistencia/asistencia-admin.page').then(
@@ -58,7 +58,7 @@ export const ADMIN_ROUTES: Routes = [
   },
   {
     path: 'auditoria',
-    title: 'Bitácora de Auditoría · Gestión de Turnos',
+    title: 'Bitácora de Auditoría · TKeeper',
     canActivate: [sesionActivaGuard, requierePermisoGuard(PERMISOS.auditoriaConsultar)],
     data: {
       titulo: 'Bitácora de auditoría',

@@ -12,7 +12,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
         <!-- Ilustración oficial sin fondo -->
         <img
           src="/Ilustracion_Login_Register.png"
-          alt="Gestión de Turnos y Calendario"
+          alt="TKeeper - Control de Asistencia y Turnos"
           width="420"
           height="420"
           class="relative z-10 h-full w-full object-contain drop-shadow-md select-none"

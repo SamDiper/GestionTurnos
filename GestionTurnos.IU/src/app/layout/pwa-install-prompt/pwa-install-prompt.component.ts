@@ -23,7 +23,7 @@ const DIAS_POSPONER = 7;
           <div class="flex items-start gap-3">
             <img src="/icons/icon-96x96.png" alt="" width="48" height="48" class="h-12 w-12 shrink-0 rounded-xl" />
             <div class="min-w-0 flex-1">
-              <h2 id="pwa-instalar-titulo" class="text-base font-bold text-[#113459]">Instala Gestión de Turnos</h2>
+              <h2 id="pwa-instalar-titulo" class="text-base font-bold text-[#113459]">Instala TKeeper</h2>
               <p class="mt-0.5 text-sm text-slate-600">
                 Ábrela desde tu pantalla de inicio como una app y marca tu asistencia más rápido.
               </p>

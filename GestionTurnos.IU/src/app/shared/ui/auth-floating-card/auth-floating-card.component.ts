@@ -25,7 +25,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
         <header class="mb-6 text-center">
           <img
             src="/Logo_APP.png"
-            alt="Logo Gestión de Turnos"
+            alt="Logo TKeeper"
             width="60"
             height="60"
             class="mx-auto mb-3 h-15 w-15 object-contain"

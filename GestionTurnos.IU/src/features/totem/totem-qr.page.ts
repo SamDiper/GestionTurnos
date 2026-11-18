@@ -28,13 +28,13 @@ import { QrAsistenciaService, RelojServidorService, TokenQrEstacion } from '../.
           <div class="flex items-center gap-4 xl:gap-5">
             <img
               src="/Logo_APP.png"
-              alt="Logo Gestión de Turnos"
+              alt="Logo TKeeper"
               class="h-14 w-14 sm:h-16 sm:w-16 xl:h-20 xl:w-20 object-contain shrink-0 drop-shadow-xs"
             />
             <div class="h-12 xl:h-14 w-px bg-slate-200 hidden sm:block"></div>
             <div>
               <p class="text-xs sm:text-sm xl:text-base font-extrabold tracking-wider text-[#1D768A] uppercase">
-                GESTIÓN DE TURNOS · CONTROL DE ACCESO
+                TKEEPER · CONTROL DE ACCESO
               </p>
               <h1 class="text-xl sm:text-2xl xl:text-3xl font-black tracking-tight text-[#113459] uppercase leading-tight">
                 REGISTRO DE ASISTENCIA DE PERSONAL
@@ -133,7 +133,7 @@ import { QrAsistenciaService, RelojServidorService, TokenQrEstacion } from '../.
                 <div class="flex h-18 w-18 sm:h-20 sm:w-20 xl:h-24 xl:w-24 items-center justify-center rounded-2xl bg-white p-2.5 shadow-2xl border-2 border-slate-200 ring-4 ring-[#1D768A]/25">
                   <img
                     src="/Logo_APP.png"
-                    alt="Logo Gestión de Turnos"
+                    alt="Logo TKeeper"
                     class="h-full w-full object-contain"
                   />
                 </div>

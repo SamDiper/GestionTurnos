@@ -35,12 +35,12 @@ import { FotoPerfilDialogComponent } from './foto-perfil-dialog.component';
         >
           <img
             src="/Logo_APP.png"
-            alt="Logo Gestión de Turnos"
+            alt="Logo TKeeper"
             width="36"
             height="36"
             class="h-9 w-9 shrink-0 object-contain"
           />
-          <span class="text-base font-extrabold text-[#113459]">Gestión de Turnos</span>
+          <span class="text-base font-extrabold text-[#113459]">TKeeper</span>
         </a>
       </div>
 

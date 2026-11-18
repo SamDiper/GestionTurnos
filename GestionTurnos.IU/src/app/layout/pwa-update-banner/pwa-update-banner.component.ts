@@ -11,7 +11,7 @@ import { PwaUpdateService } from '../../core';
         aria-label="Actualización de aplicación disponible"
         class="flex flex-wrap items-center justify-between gap-3 bg-indigo-950 px-4 py-2.5 text-xs text-white"
       >
-        <span class="font-medium">Hay una versión nueva disponible de Gestión de Turnos.</span>
+        <span class="font-medium">Hay una versión nueva disponible de TKeeper.</span>
         <div class="flex items-center gap-2">
           <button
             type="button"
