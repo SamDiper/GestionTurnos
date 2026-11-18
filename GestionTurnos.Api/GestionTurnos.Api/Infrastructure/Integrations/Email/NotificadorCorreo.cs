@@ -18,6 +18,47 @@ public sealed partial class NotificadorCorreo : INotificadorCorreo
     private const string Layout = "_layout";
     private static readonly ConcurrentDictionary<string, string> CachePlantillas = new();
 
+    private static readonly Lazy<byte[]?> LogoBytesLazy = new(() =>
+    {
+        // 1. Intentar recurso embebido "Email.Logo_APP.png"
+        try
+        {
+            var stream = typeof(NotificadorCorreo).Assembly.GetManifestResourceStream("Email.Logo_APP.png");
+            if (stream != null)
+            {
+                using (stream)
+                using (var ms = new MemoryStream())
+                {
+                    stream.CopyTo(ms);
+                    return ms.ToArray();
+                }
+            }
+        }
+        catch { }
+
+        // 2. Intentar archivo en disco (desarrollo local)
+        var rutas = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "Infrastructure", "Templates", "Email", "Logo_APP.png"),
+            Path.Combine(Directory.GetCurrentDirectory(), "Infrastructure", "Templates", "Email", "Logo_APP.png"),
+            Path.Combine(Directory.GetCurrentDirectory(), "GestionTurnos.Api", "Infrastructure", "Templates", "Email", "Logo_APP.png"),
+            Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "Logo_APP.png"),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "GestionTurnos.IU", "public", "Logo_APP.png")
+        };
+        foreach (var ruta in rutas)
+        {
+            try
+            {
+                if (File.Exists(ruta))
+                {
+                    return File.ReadAllBytes(ruta);
+                }
+            }
+            catch { }
+        }
+        return null;
+    });
+
     private readonly ITemplateRenderer _renderer;
     private readonly ColaCorreos _cola;
     private readonly IOptionsMonitor<NotificacionesSettings> _settings;
@@ -51,22 +92,35 @@ public sealed partial class NotificadorCorreo : INotificadorCorreo
         try
         {
             var settings = _settings.CurrentValue;
+            var baseUrl = settings.UrlAplicacion?.TrimEnd('/');
+            var logoBytes = LogoBytesLazy.Value;
+            var tieneLogo = logoBytes != null && logoBytes.Length > 0;
+
             var sistema = new
             {
                 Nombre = settings.NombreSistema,
                 Url = settings.UrlAplicacion,
-                Anio = DateTime.UtcNow.Year
+                Anio = DateTime.UtcNow.Year,
+                LogoCid = tieneLogo ? "logo_empresa" : null,
+                LogoUrl = !string.IsNullOrWhiteSpace(baseUrl) ? $"{baseUrl}/Logo_APP.png" : null
             };
 
             var cuerpo = await _renderer.RenderAsync(ObtenerPlantilla(plantilla), new { Modelo = modelo, Sistema = sistema }, cancellationToken);
             var html = await _renderer.RenderAsync(ObtenerPlantilla(Layout), new { Asunto = asunto, Contenido = cuerpo, Sistema = sistema }, cancellationToken);
+
+            var recursos = new List<EmailLinkedResource>();
+            if (tieneLogo)
+            {
+                recursos.Add(new EmailLinkedResource("logo_empresa", "image/png", logoBytes!));
+            }
 
             var mensaje = new EmailMessage(
                 destinatario.Correo.Trim(),
                 destinatario.Nombre,
                 $"{asunto} | {settings.NombreSistema}",
                 html,
-                HtmlATexto(html))
+                HtmlATexto(html),
+                recursos.Count > 0 ? recursos : null)
             {
                 Category = plantilla
             };
@@ -89,11 +143,33 @@ public sealed partial class NotificadorCorreo : INotificadorCorreo
     }
 
     /// <summary>
-    /// Las plantillas se compilan dentro del ensamblado (EmbeddedResource "Email.{nombre}.html"):
-    /// viajan con la publicación y no dependen de rutas en el servidor.
+    /// En desarrollo revisa el sistema de archivos para cambios en caliente;
+    /// si no existe en disco, lee el recurso embebido en el ensamblado (producción/publicación).
     /// </summary>
-    private static string ObtenerPlantilla(string nombre) =>
-        CachePlantillas.GetOrAdd(nombre, static n =>
+    private static string ObtenerPlantilla(string nombre)
+    {
+        // 1. Probar en disco (para desarrollo local sin recompilar plantillas)
+        var rutasDisco = new[]
+        {
+            Path.Combine(Directory.GetCurrentDirectory(), "Infrastructure", "Templates", "Email", $"{nombre}.html"),
+            Path.Combine(AppContext.BaseDirectory, "Infrastructure", "Templates", "Email", $"{nombre}.html"),
+            Path.Combine(Directory.GetCurrentDirectory(), "GestionTurnos.Api", "Infrastructure", "Templates", "Email", $"{nombre}.html")
+        };
+
+        foreach (var ruta in rutasDisco)
+        {
+            try
+            {
+                if (File.Exists(ruta))
+                {
+                    return File.ReadAllText(ruta);
+                }
+            }
+            catch { }
+        }
+
+        // 2. Fallback a recurso embebido en el ensamblado
+        return CachePlantillas.GetOrAdd(nombre, static n =>
         {
             var recurso = $"Email.{n}.html";
             using var stream = typeof(NotificadorCorreo).Assembly.GetManifestResourceStream(recurso)
@@ -101,6 +177,7 @@ public sealed partial class NotificadorCorreo : INotificadorCorreo
             using var reader = new StreamReader(stream);
             return reader.ReadToEnd();
         });
+    }
 
     /// <summary>Alternativa en texto plano (mejora la entregabilidad y la lectura en clientes sin HTML).</summary>
     private static string HtmlATexto(string html)

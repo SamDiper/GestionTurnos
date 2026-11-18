@@ -1,4 +1,4 @@
-﻿using MailKit;
+using MailKit;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Logging;
@@ -113,6 +113,15 @@ namespace GestionTurnos.Shared.EMAIL
             if (!string.IsNullOrWhiteSpace(message.TextBody))
             {
                 body.TextBody = message.TextBody;
+            }
+
+            if (message.LinkedResources != null)
+            {
+                foreach (var res in message.LinkedResources)
+                {
+                    var part = body.LinkedResources.Add(res.ContentId, res.Data, ContentType.Parse(res.ContentType));
+                    part.ContentId = res.ContentId;
+                }
             }
 
             mime.Body = body.ToMessageBody();

@@ -51,6 +51,7 @@
   <ItemGroup>
     <!-- Plantillas de correo embebidas: viajan dentro del ensamblado publicado (recurso "Email.{nombre}.html"). -->
     <EmbeddedResource Include="Infrastructure/Templates/Email/*.html" LogicalName="Email.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Infrastructure/Templates/Email/*.png" LogicalName="Email.%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

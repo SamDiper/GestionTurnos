@@ -1,4 +1,4 @@
-﻿namespace GestionTurnos.Shared.EMAIL
+namespace GestionTurnos.Shared.EMAIL
 {
     /// <summary>
     /// Envío de correo electrónico transaccional. Implementación thread-safe registrada como singleton.
@@ -13,6 +13,14 @@
     }
 
     /// <summary>
+    /// Recurso enlazado para imágenes inline (p. ej. logo corporativo referenciado por CID).
+    /// </summary>
+    public sealed record EmailLinkedResource(
+        string ContentId,
+        string ContentType,
+        byte[] Data);
+
+    /// <summary>
     /// Mensaje de correo a enviar. Conviene incluir siempre una versión en texto plano además del HTML
     /// (mejora la entregabilidad y la accesibilidad).
     /// </summary>
@@ -21,7 +29,8 @@
         string? ToName,
         string Subject,
         string HtmlBody,
-        string? TextBody = null)
+        string? TextBody = null,
+        IReadOnlyList<EmailLinkedResource>? LinkedResources = null)
     {
         /// <summary>Etiqueta libre para trazabilidad en logs (p. ej. "registro_aprobado").</summary>
         public string? Category { get; init; }
