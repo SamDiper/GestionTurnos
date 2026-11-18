@@ -5,9 +5,11 @@ import { CatalogoSimpleSectionComponent } from './secciones/catalogo-simple.sect
 import { CategoriasHoraSectionComponent } from './secciones/categorias-hora.section';
 import { DiasFestivosSectionComponent } from './secciones/dias-festivos.section';
 import { ParametrosSectionComponent } from './secciones/parametros.section';
+import { RolesPermisosSectionComponent } from './secciones/roles-permisos.section';
 import { TiposNovedadSectionComponent } from './secciones/tipos-novedad.section';
 
 const PESTANAS: readonly PestanaItem[] = [
+  { id: 'roles', etiqueta: 'Roles y permisos' },
   { id: 'parametros', etiqueta: 'Parámetros de negocio' },
   { id: 'festivos', etiqueta: 'Días festivos' },
   { id: 'novedades', etiqueta: 'Tipos de novedad' },
@@ -33,6 +35,7 @@ const PESTANAS: readonly PestanaItem[] = [
     CategoriasHoraSectionComponent,
     DiasFestivosSectionComponent,
     ParametrosSectionComponent,
+    RolesPermisosSectionComponent,
     TiposNovedadSectionComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -51,6 +54,7 @@ const PESTANAS: readonly PestanaItem[] = [
 
       <div role="tabpanel" [attr.aria-labelledby]="'tab-' + activa()" class="tarjeta">
         @switch (activa()) {
+          @case ('roles') { <app-roles-permisos-section /> }
           @case ('parametros') { <app-parametros-section /> }
           @case ('festivos') { <app-dias-festivos-section /> }
           @case ('novedades') { <app-tipos-novedad-section /> }

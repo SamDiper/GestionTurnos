@@ -24,9 +24,11 @@ import {
   Parametro,
   ParametroValor,
   PerfilEmpleado,
+  PermisoSistema,
   PrevisualizacionModificacion,
   ResultadoSolicitudVacaciones,
   RevisionConflictosTurno,
+  RolSistema,
   SaldoVacaciones,
   SolicitudCambioTurno,
   SolicitudRegistro,
@@ -387,6 +389,37 @@ export class AsistenciaAdminApi {
     }
   ): Observable<{ idRegistro: number }> {
     return this.api.put(`/asistencia/manual/${idRegistro}`, cuerpo);
+  }
+}
+
+/** Administración de Roles y Matriz de Permisos (permiso usuarios.gestionar). */
+@Injectable({ providedIn: 'root' })
+export class RolesAdminApi {
+  private readonly api = inject(ApiClient);
+
+  listarRoles(soloActivos = false): Observable<readonly RolSistema[]> {
+    return this.api.get('/usuarios/roles', { soloActivos });
+  }
+
+  listarPermisos(): Observable<readonly PermisoSistema[]> {
+    return this.api.get('/usuarios/permisos');
+  }
+
+  guardarRol(cuerpo: {
+    idRol?: number | null;
+    nombre: string;
+    descripcion?: string | null;
+    activo: boolean;
+    codigosPermisos: readonly string[];
+  }): Observable<number> {
+    if (cuerpo.idRol) {
+      return this.api.put(`/usuarios/roles/${cuerpo.idRol}`, cuerpo);
+    }
+    return this.api.post('/usuarios/roles', cuerpo);
+  }
+
+  desactivarRol(idRol: number): Observable<void> {
+    return this.api.post(`/usuarios/roles/${idRol}/desactivar`, {});
   }
 }
 

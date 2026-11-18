@@ -361,6 +361,20 @@ export interface HorasPorTurno {
   readonly esJustificado?: boolean;
 }
 
+export interface PermisoSistema {
+  readonly idPermiso: number;
+  readonly codigo: string;
+  readonly descripcion: string | null;
+}
+
+export interface RolSistema {
+  readonly idRol: number;
+  readonly nombre: string;
+  readonly descripcion: string | null;
+  readonly activo: boolean;
+  readonly permisos: readonly string[];
+}
+
 export interface PanelInicial {
   readonly registrosPendientes: number;
   readonly vacacionesPendientes: number;
