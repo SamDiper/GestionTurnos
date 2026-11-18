@@ -83,6 +83,11 @@ export class TurnoHoyCardComponent implements OnInit {
   );
 
   ngOnInit(): void {
+    this.cargar();
+  }
+
+  cargar(): void {
+    this.cargando.set(true);
     this.api.calendario(inicioDiaIso(this.hoy), inicioDiaIso(sumarDias(this.hoy, 8))).subscribe({
       next: (l) => {
         this.eventos.set(l);

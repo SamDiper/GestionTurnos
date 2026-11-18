@@ -24,9 +24,9 @@ import { TurnoHoyCardComponent } from '../components/turno-hoy-card.component';
       </header>
 
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <app-turno-hoy-card />
+        <app-turno-hoy-card #turnoHoy />
         <div class="space-y-6">
-          <app-marcaje-rapido-card />
+          <app-marcaje-rapido-card (marcado)="turnoHoy.cargar()" />
           <app-resumen-vacaciones-card />
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, output, signal } from '@angular/core';
 import {
   ApiClient,
   ConexionService,
@@ -24,6 +24,19 @@ import { UiButtonComponent } from '../../../app/shared/ui';
           Hora oficial del servidor:
           <strong class="font-mono text-slate-900">{{ reloj.horaBogota() }}</strong>
         </p>
+
+        @if (ultimoMarcaje(); as ult) {
+          <div
+            role="status"
+            class="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/80 p-2.5 text-xs text-emerald-950"
+          >
+            <span class="inline-block h-2 w-2 rounded-full bg-emerald-500 shrink-0" aria-hidden="true"></span>
+            <span>
+              {{ ult.tipo === 'mi-entrada' ? 'Entrada' : 'Salida' }} registrada con éxito a las
+              <strong class="font-mono font-semibold">{{ ult.hora }}</strong>
+            </span>
+          </div>
+        }
 
         @if (!conexion.enLinea()) {
           <div
@@ -61,6 +74,8 @@ import { UiButtonComponent } from '../../../app/shared/ui';
   `,
 })
 export class MarcajeRapidoCardComponent {
+  readonly marcado = output<'mi-entrada' | 'mi-salida'>();
+
   protected readonly conexion = inject(ConexionService);
   protected readonly reloj = inject(RelojServidorService);
   private readonly api = inject(ApiClient);
@@ -68,6 +83,7 @@ export class MarcajeRapidoCardComponent {
 
   readonly marcandoEntrada = signal(false);
   readonly marcandoSalida = signal(false);
+  readonly ultimoMarcaje = signal<{ tipo: 'mi-entrada' | 'mi-salida'; hora: string } | null>(null);
 
   marcar(tipo: 'mi-entrada' | 'mi-salida'): void {
     if (!this.conexion.enLinea()) return;
@@ -77,9 +93,11 @@ export class MarcajeRapidoCardComponent {
     this.api.post(`/asistencia/${tipo}`, { observacion: null }).subscribe({
       next: () => {
         estadoCarga.set(false);
+        this.ultimoMarcaje.set({ tipo, hora: this.reloj.horaBogota() });
         this.toast.exito(
           tipo === 'mi-entrada' ? 'Entrada registrada con éxito.' : 'Salida registrada con éxito.'
         );
+        this.marcado.emit(tipo);
       },
       error: (err: unknown) => {
         estadoCarga.set(false);
