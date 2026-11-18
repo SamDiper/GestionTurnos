@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   AuthService,
@@ -8,10 +8,13 @@ import {
   PwaUpdateService,
   RelojServidorService,
 } from '../../core';
+import { FotoPerfilStore } from '../../shared/data/foto-perfil.store';
+import { AvatarPerfilComponent } from './avatar-perfil.component';
+import { FotoPerfilDialogComponent } from './foto-perfil-dialog.component';
 
 @Component({
   selector: 'app-topbar',
-  imports: [RouterLink],
+  imports: [RouterLink, AvatarPerfilComponent, FotoPerfilDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header
@@ -67,12 +70,21 @@ import {
         }
 
         <div class="flex items-center gap-2">
-          <span class="hidden text-right text-xs sm:block">
-            <strong class="block font-semibold text-[#113459]">
-              {{ store.usuario()?.nombreCompleto || 'Usuario' }}
-            </strong>
-            <span class="text-slate-500">{{ store.usuario()?.rol || 'Empleado' }}</span>
-          </span>
+          <button
+            type="button"
+            (click)="dialogoFotoAbierto.set(true)"
+            aria-label="Cambiar foto de perfil"
+            title="Cambiar foto de perfil"
+            class="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-1.5 hover:bg-slate-100"
+          >
+            <span class="hidden text-right text-xs sm:block">
+              <strong class="block font-semibold text-[#113459]">
+                {{ store.usuario()?.nombreCompleto || 'Usuario' }}
+              </strong>
+              <span class="text-slate-500">{{ store.usuario()?.rol || 'Empleado' }}</span>
+            </span>
+            <app-avatar-perfil [url]="fotos.url()" [nombre]="store.usuario()?.nombreCompleto || ''" />
+          </button>
 
           <button
             type="button"
@@ -84,6 +96,8 @@ import {
         </div>
       </div>
     </header>
+
+    <app-foto-perfil-dialog [abierto]="dialogoFotoAbierto()" (cerrar)="dialogoFotoAbierto.set(false)" />
   `,
 })
 export class TopbarComponent {
@@ -93,4 +107,6 @@ export class TopbarComponent {
   protected readonly conexion = inject(ConexionService);
   protected readonly cargando = inject(LoadingStateService);
   protected readonly pwa = inject(PwaUpdateService);
+  protected readonly fotos = inject(FotoPerfilStore);
+  protected readonly dialogoFotoAbierto = signal(false);
 }
