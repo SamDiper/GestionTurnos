@@ -19,6 +19,7 @@ import {
   AsignacionTurno,
   Novedad,
   PaginaApi,
+  PanelAsistenciaDia,
   PanelInicial,
   Parametro,
   ParametroValor,
@@ -350,6 +351,42 @@ export class AuditoriaApi {
     pageSize = 25
   ): Observable<PaginaApi<BitacoraNegocio>> {
     return this.api.get(`/auditoria/bitacora/${esquema}/${tabla}/${idRegistro}`, { pageNumber, pageSize });
+  }
+}
+
+/** Panel y supervisión de asistencia administrativa (permiso asistencia.consultar). */
+@Injectable({ providedIn: 'root' })
+export class AsistenciaAdminApi {
+  private readonly api = inject(ApiClient);
+
+  obtenerPanelDia(fecha?: string, idArea?: number): Observable<PanelAsistenciaDia> {
+    const params: Record<string, string | number> = {};
+    if (fecha) params['fecha'] = fecha;
+    if (idArea) params['idArea'] = idArea;
+    return this.api.get('/asistencia/panel-dia', params);
+  }
+
+  registrarManual(cuerpo: {
+    idEmpleado: number;
+    idAsignacion?: number | null;
+    horaEntrada: string;
+    horaSalida?: string | null;
+    observacion: string;
+  }): Observable<{ idRegistro: number }> {
+    return this.api.post('/asistencia/manual', cuerpo);
+  }
+
+  corregirManual(
+    idRegistro: number,
+    cuerpo: {
+      idEmpleado: number;
+      idAsignacion?: number | null;
+      horaEntrada: string;
+      horaSalida?: string | null;
+      observacion: string;
+    }
+  ): Observable<{ idRegistro: number }> {
+    return this.api.put(`/asistencia/manual/${idRegistro}`, cuerpo);
   }
 }
 

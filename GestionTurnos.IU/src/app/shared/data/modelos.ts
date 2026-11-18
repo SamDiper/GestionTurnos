@@ -370,6 +370,36 @@ export interface PanelInicial {
   readonly sinAsistenciaHoy: number;
 }
 
+export interface PanelAsistenciaTurno {
+  readonly idAsignacion: number;
+  readonly idEmpleado: number;
+  readonly nombreEmpleado: string;
+  readonly idArea: number;
+  readonly nombreArea: string;
+  readonly idTurno: number;
+  readonly nombreTurno: string;
+  readonly programadoInicio: string;
+  readonly programadoFin: string;
+  readonly idRegistro: number | null;
+  readonly horaEntrada: string | null;
+  readonly horaSalida: string | null;
+  readonly minutosTarde: number;
+  readonly tarde: boolean;
+  readonly estado: string;
+  readonly novedadQueExplica: string | null;
+}
+
+export interface PanelAsistenciaDia {
+  readonly fecha: string;
+  readonly toleranciaEntradaMinutos: number;
+  readonly turnosProgramados: number;
+  readonly conAsistencia: number;
+  readonly enCurso: number;
+  readonly tardanzas: number;
+  readonly sinAsistencia: number;
+  readonly turnos: readonly PanelAsistenciaTurno[];
+}
+
 export const ESTADOS_SOLICITUD = [
   { valor: 'PENDIENTE', etiqueta: 'Pendientes' },
   { valor: 'APROBADA', etiqueta: 'Aprobadas' },

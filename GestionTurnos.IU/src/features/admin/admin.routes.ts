@@ -51,12 +51,10 @@ export const ADMIN_ROUTES: Routes = [
     path: 'asistencia',
     title: 'Control de Asistencia · Gestión de Turnos',
     canActivate: [sesionActivaGuard, requierePermisoGuard(PERMISOS.asistenciaConsultar)],
-    data: {
-      titulo: 'Panel de asistencia del día',
-      descripcion: 'Supervisión de marcajes y registro manual con observación obligatoria.',
-    },
     loadComponent: () =>
-      import('../mi/seccion/mi-seccion.page').then((m) => m.MiSeccionPageComponent),
+      import('./asistencia/asistencia-admin.page').then(
+        (m) => m.AsistenciaAdminPageComponent
+      ),
   },
   {
     path: 'auditoria',
