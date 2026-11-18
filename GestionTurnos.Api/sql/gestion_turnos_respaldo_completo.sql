@@ -1558,7 +1558,25 @@ INSERT INTO auditoria.bitacora_negocio OVERRIDING SYSTEM VALUE VALUES
 	(229, '2026-11-18 17:15:05.658166-05', NULL, 'MODIFICAR', 'seguridad', 'usuario', '6', NULL, '{"UltimoAcceso": "2026-11-18T22:12:23.971037+00:00"}', '{"UltimoAcceso": "2026-11-18T22:15:05.3643862+00:00"}', NULL, '181.143.2.194'),
 	(230, '2026-11-18 17:16:43.186909-05', 6, 'INICIO_SESION', 'seguridad', 'usuario', '6', 5, NULL, NULL, NULL, '181.51.32.131'),
 	(231, '2026-11-18 17:16:43.142307-05', 6, 'MODIFICAR', 'seguridad', 'usuario', '6', NULL, '{"ultimo_acceso": "2026-11-18T17:15:05.364386-05:00"}', '{"ultimo_acceso": "2026-11-18T17:16:43.186904-05:00"}', NULL, '181.51.32.131'),
-	(232, '2026-11-18 17:16:43.484473-05', NULL, 'MODIFICAR', 'seguridad', 'usuario', '6', NULL, '{"UltimoAcceso": "2026-11-18T22:15:05.364386+00:00"}', '{"UltimoAcceso": "2026-11-18T22:16:43.1869045+00:00"}', NULL, '181.51.32.131');
+	(232, '2026-11-18 17:16:43.484473-05', NULL, 'MODIFICAR', 'seguridad', 'usuario', '6', NULL, '{"UltimoAcceso": "2026-11-18T22:15:05.364386+00:00"}', '{"UltimoAcceso": "2026-11-18T22:16:43.1869045+00:00"}', NULL, '181.51.32.131'),
+	(233, '2026-11-18 17:17:20.655371-05', 6, 'INICIO_SESION', 'seguridad', 'usuario', '6', 5, NULL, NULL, NULL, '181.143.2.194'),
+	(234, '2026-11-18 17:17:20.610269-05', 6, 'MODIFICAR', 'seguridad', 'usuario', '6', NULL, '{"ultimo_acceso": "2026-11-18T17:16:43.186904-05:00"}', '{"ultimo_acceso": "2026-11-18T17:17:20.655354-05:00"}', NULL, '181.143.2.194'),
+	(235, '2026-11-18 17:17:20.942194-05', NULL, 'MODIFICAR', 'seguridad', 'usuario', '6', NULL, '{"UltimoAcceso": "2026-11-18T22:16:43.186904+00:00"}', '{"UltimoAcceso": "2026-11-18T22:17:20.6553547+00:00"}', NULL, '181.143.2.194'),
+	(236, '2026-11-18 17:18:30.441723-05', 7, 'INICIO_SESION', 'seguridad', 'usuario', '7', 6, NULL, NULL, NULL, '::1'),
+	(237, '2026-11-18 17:18:30.149342-05', 7, 'MODIFICAR', 'seguridad', 'usuario', '7', NULL, '{"ultimo_acceso": "2026-11-18T17:13:26.290797-05:00"}', '{"ultimo_acceso": "2026-11-18T17:18:30.441491-05:00"}', NULL, '::1'),
+	(238, '2026-11-18 17:18:30.849693-05', NULL, 'MODIFICAR', 'seguridad', 'usuario', '7', NULL, '{"UltimoAcceso": "2026-11-18T22:13:26.290797+00:00"}', '{"UltimoAcceso": "2026-11-18T22:18:30.4414918+00:00"}', NULL, '::1'),
+	(239, '2026-11-18 17:19:06.827092-05', 6, 'INICIO_SESION', 'seguridad', 'usuario', '6', 5, NULL, NULL, NULL, '::1'),
+	(240, '2026-11-18 17:19:06.572601-05', 6, 'MODIFICAR', 'seguridad', 'usuario', '6', NULL, '{"ultimo_acceso": "2026-11-18T17:17:20.655354-05:00"}', '{"ultimo_acceso": "2026-11-18T17:19:06.82666-05:00"}', NULL, '::1'),
+	(241, '2026-11-18 17:19:07.848371-05', NULL, 'MODIFICAR', 'seguridad', 'usuario', '6', NULL, '{"UltimoAcceso": "2026-11-18T22:17:20.655354+00:00"}', '{"UltimoAcceso": "2026-11-18T22:19:06.8266606+00:00"}', NULL, '::1'),
+	(242, '2026-11-18 17:24:11.279754-05', 6, 'INICIO_SESION', 'seguridad', 'usuario', '6', 5, NULL, NULL, NULL, '::1'),
+	(243, '2026-11-18 17:24:11.211566-05', 6, 'MODIFICAR', 'seguridad', 'usuario', '6', NULL, '{"ultimo_acceso": "2026-11-18T17:19:06.82666-05:00"}', '{"ultimo_acceso": "2026-11-18T17:24:11.279256-05:00"}', NULL, '::1'),
+	(244, '2026-11-18 17:24:11.701083-05', NULL, 'MODIFICAR', 'seguridad', 'usuario', '6', NULL, '{"UltimoAcceso": "2026-11-18T22:19:06.82666+00:00"}', '{"UltimoAcceso": "2026-11-18T22:24:11.2792565+00:00"}', NULL, '::1'),
+	(245, '2026-11-18 17:30:21.9121-05', NULL, 'CREAR', 'seguridad', 'usuario', '9', NULL, NULL, '{"correo": "laura.gomez.pruebas@gestionturnos.local", "id_rol": 2, "creado_en": "2026-11-18T17:30:21.9121-05:00", "id_usuario": 9, "ultimo_acceso": null, "cod_estado_usuario": "ACTIVO"}', NULL, NULL),
+	(246, '2026-11-18 17:30:21.9121-05', NULL, 'CREAR', 'organizacion', 'empleado', '8', 8, NULL, '{"id_area": 5, "nombres": "Laura Valentina", "id_cargo": 5, "telefono": "3157654321", "apellidos": "Gómez Rincón", "creado_en": "2026-11-18T17:30:21.9121-05:00", "direccion": "Carrera 15 # 82-40, Bogotá", "id_usuario": 9, "id_empleado": 8, "fecha_retiro": null, "fecha_ingreso": "2025-03-03", "correo_contacto": "laura.gomez.pruebas@gestionturnos.local", "numero_documento": "1019876543", "cod_tipo_contrato": "INDEFINIDO", "cod_tipo_documento": "CC", "cod_estado_empleado": "ACTIVO"}', NULL, NULL),
+	(247, '2026-11-18 17:30:21.9121-05', NULL, 'CREAR', 'novedades', 'periodo_vacacional', '1', 8, NULL, '{"fecha_fin": "2026-03-02", "id_empleado": 8, "fecha_inicio": "2025-03-03", "dias_otorgados": 15.00, "id_periodo_vacacional": 1}', NULL, NULL),
+	(248, '2026-11-18 17:33:30.082708-05', 6, 'INICIO_SESION', 'seguridad', 'usuario', '6', 5, NULL, NULL, NULL, '181.143.2.194'),
+	(249, '2026-11-18 17:33:30.028177-05', 6, 'MODIFICAR', 'seguridad', 'usuario', '6', NULL, '{"ultimo_acceso": "2026-11-18T17:24:11.279256-05:00"}', '{"ultimo_acceso": "2026-11-18T17:33:30.082633-05:00"}', NULL, '181.143.2.194'),
+	(250, '2026-11-18 17:33:30.699217-05', NULL, 'MODIFICAR', 'seguridad', 'usuario', '6', NULL, '{"UltimoAcceso": "2026-11-18T22:24:11.279256+00:00"}', '{"UltimoAcceso": "2026-11-18T22:33:30.0826336+00:00"}', NULL, '181.143.2.194');
 
 
 --
@@ -1573,6 +1591,8 @@ INSERT INTO novedades.novedad OVERRIDING SYSTEM VALUE VALUES
 -- Data for Name: periodo_vacacional; Type: TABLE DATA; Schema: novedades; Owner: -
 --
 
+INSERT INTO novedades.periodo_vacacional OVERRIDING SYSTEM VALUE VALUES
+	(1, 8, '2025-03-03', '2026-03-02', 15.00);
 
 
 --
@@ -1604,7 +1624,8 @@ INSERT INTO organizacion.cargo OVERRIDING SYSTEM VALUE VALUES
 INSERT INTO organizacion.empleado OVERRIDING SYSTEM VALUE VALUES
 	(5, 6, 'CC', '1000000001', 'Andrés Julián', 'Muñoz Peña', 'admin@gestionturnos.local', '3001234567', 'Calle 10 # 5-23, Bogotá', 5, 5, 'INDEFINIDO', '2026-01-01', NULL, 'ACTIVO', '2026-11-17 11:44:53.200755-05'),
 	(6, 7, 'CC', '1033487560', 'Samuel', 'Díaz Pérez', 'samueldiazp.dev@gmail.com', '3106653490', NULL, 5, 5, 'INDEFINIDO', '2026-11-17', NULL, 'ACTIVO', '2026-11-17 17:02:52.390491-05'),
-	(7, 8, 'CC', '1022483250', 'Juan Sebastián', 'Montaño Pérez', 'samueldiazperez4c@gmail.com', '3106653493', NULL, 5, 5, 'INDEFINIDO', '2026-11-18', NULL, 'ACTIVO', '2026-11-18 11:25:42.446835-05');
+	(7, 8, 'CC', '1022483250', 'Juan Sebastián', 'Montaño Pérez', 'samueldiazperez4c@gmail.com', '3106653493', NULL, 5, 5, 'INDEFINIDO', '2026-11-18', NULL, 'ACTIVO', '2026-11-18 11:25:42.446835-05'),
+	(8, 9, 'CC', '1019876543', 'Laura Valentina', 'Gómez Rincón', 'laura.gomez.pruebas@gestionturnos.local', '3157654321', 'Carrera 15 # 82-40, Bogotá', 5, 5, 'INDEFINIDO', '2025-03-03', NULL, 'ACTIVO', '2026-11-18 17:30:21.9121-05');
 
 
 --
@@ -1835,9 +1856,10 @@ INSERT INTO seguridad.solicitud_registro OVERRIDING SYSTEM VALUE VALUES
 
 INSERT INTO seguridad.usuario OVERRIDING SYSTEM VALUE VALUES
 	(1, 'admin@tuempresa.com', '<hash bcrypt>', 1, 'ACTIVO', NULL, '2026-11-16 18:40:06.797755-05'),
+	(9, 'laura.gomez.pruebas@gestionturnos.local', '$2a$11$TxCtURMz/p8mEBXd9xtzS.lRwkD3RgwQHG4.nPo2bHB2RSmsecCE6', 2, 'ACTIVO', NULL, '2026-11-18 17:30:21.9121-05'),
+	(6, 'admin@gestionturnos.local', '$2a$11$45jexQwq2p47LttgVLoz7.VFhvy6x37ivRkeXmTjwg33nVQWT6uUi', 1, 'ACTIVO', '2026-11-18 17:33:30.082633-05', '2026-11-17 11:44:53.200755-05'),
 	(8, 'samueldiazperez4c@gmail.com', '$2a$11$u2bVHH1vwk0dIBvPg2dKjuw5XdWhETJpsvEYecA0JX9D.LQoOTYVK', 2, 'ACTIVO', NULL, '2026-11-18 11:25:42.015438-05'),
-	(7, 'samueldiazp.dev@gmail.com', '$2a$11$cu.FLsr3Ify9EkpIrV3sC.ARfHVaw1BiaZ2fnQoPxoxgSThN6uuy.', 2, 'ACTIVO', '2026-11-18 17:13:26.290797-05', '2026-11-17 17:02:51.524952-05'),
-	(6, 'admin@gestionturnos.local', '$2a$11$45jexQwq2p47LttgVLoz7.VFhvy6x37ivRkeXmTjwg33nVQWT6uUi', 1, 'ACTIVO', '2026-11-18 17:16:43.186904-05', '2026-11-17 11:44:53.200755-05');
+	(7, 'samueldiazp.dev@gmail.com', '$2a$11$cu.FLsr3Ify9EkpIrV3sC.ARfHVaw1BiaZ2fnQoPxoxgSThN6uuy.', 2, 'ACTIVO', '2026-11-18 17:18:30.441491-05', '2026-11-17 17:02:51.524952-05');
 
 
 --
@@ -1900,7 +1922,7 @@ SELECT pg_catalog.setval('asistencia.registro_id_registro_seq', 1, true);
 -- Name: bitacora_negocio_id_bitacora_seq; Type: SEQUENCE SET; Schema: auditoria; Owner: -
 --
 
-SELECT pg_catalog.setval('auditoria.bitacora_negocio_id_bitacora_seq', 232, true);
+SELECT pg_catalog.setval('auditoria.bitacora_negocio_id_bitacora_seq', 250, true);
 
 
 --
@@ -1914,7 +1936,7 @@ SELECT pg_catalog.setval('novedades.novedad_id_novedad_seq', 1, true);
 -- Name: periodo_vacacional_id_periodo_vacacional_seq; Type: SEQUENCE SET; Schema: novedades; Owner: -
 --
 
-SELECT pg_catalog.setval('novedades.periodo_vacacional_id_periodo_vacacional_seq', 1, false);
+SELECT pg_catalog.setval('novedades.periodo_vacacional_id_periodo_vacacional_seq', 1, true);
 
 
 --
@@ -1942,7 +1964,7 @@ SELECT pg_catalog.setval('organizacion.cargo_id_cargo_seq', 5, true);
 -- Name: empleado_id_empleado_seq; Type: SEQUENCE SET; Schema: organizacion; Owner: -
 --
 
-SELECT pg_catalog.setval('organizacion.empleado_id_empleado_seq', 7, true);
+SELECT pg_catalog.setval('organizacion.empleado_id_empleado_seq', 8, true);
 
 
 --
@@ -1984,7 +2006,7 @@ SELECT pg_catalog.setval('seguridad.rol_id_rol_seq', 7, true);
 -- Name: sesion_dispositivo_id_sesion_seq; Type: SEQUENCE SET; Schema: seguridad; Owner: -
 --
 
-SELECT pg_catalog.setval('seguridad.sesion_dispositivo_id_sesion_seq', 7, true);
+SELECT pg_catalog.setval('seguridad.sesion_dispositivo_id_sesion_seq', 12, true);
 
 
 --
@@ -1998,7 +2020,7 @@ SELECT pg_catalog.setval('seguridad.solicitud_registro_id_solicitud_registro_seq
 -- Name: usuario_id_usuario_seq; Type: SEQUENCE SET; Schema: seguridad; Owner: -
 --
 
-SELECT pg_catalog.setval('seguridad.usuario_id_usuario_seq', 8, true);
+SELECT pg_catalog.setval('seguridad.usuario_id_usuario_seq', 9, true);
 
 
 --
