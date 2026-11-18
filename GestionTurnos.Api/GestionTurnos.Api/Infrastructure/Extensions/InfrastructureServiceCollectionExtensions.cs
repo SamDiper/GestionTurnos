@@ -68,6 +68,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IEmpleadoSesionService, EmpleadoSesionService>();
 
+        // Almacenamiento de imágenes (fotos de perfil en Cloudinary)
+        services.AddOptions<GestionTurnos.Api.Infrastructure.Integrations.Imagenes.CloudinarySettings>()
+            .Bind(configuration.GetSection(GestionTurnos.Api.Infrastructure.Integrations.Imagenes.CloudinarySettings.SectionName));
+        services.AddSingleton<IAlmacenImagenes, GestionTurnos.Api.Infrastructure.Integrations.Imagenes.CloudinaryAlmacenImagenes>();
+
         // Parametrización y Reglas de Negocio
         services.AddScoped<IParametroService, ParametroService>();
 
