@@ -428,25 +428,87 @@ public sealed class ObtenerMisHorasPorTurnoQueryHandler
 
         var items = await (from v in _context.VistaHorasPorTurno.AsNoTracking()
                            join t in _context.Turnos.AsNoTracking() on v.IdTurno equals t.IdTurno
+                           join a in _context.Asignaciones.AsNoTracking() on v.IdAsignacion equals a.IdAsignacion
                            where v.IdEmpleado == idEmpleado &&
                                  v.Fecha >= request.Desde &&
                                  v.Fecha <= request.Hasta
                            orderby v.Fecha descending
-                           select new HorasPorTurnoEmpleadoDto(
+                           select new
+                           {
                                v.IdAsignacion,
                                v.Fecha,
                                v.IdTurno,
-                               t.Nombre,
+                               NombreTurno = t.Nombre,
                                v.MinutosProgramados,
                                v.MinutosTrabajados,
-                               v.MinutosTrabajados - v.MinutosProgramados,
                                v.HoraEntrada,
                                v.HoraSalida,
                                v.MinutosTarde,
-                               v.SinAsistencia))
+                               v.SinAsistencia,
+                               PeriodoInicio = a.Periodo.Inicio,
+                               PeriodoFin = a.Periodo.Fin
+                           })
                           .ToListAsync(cancellationToken);
 
-        return Result.Success<IReadOnlyList<HorasPorTurnoEmpleadoDto>>(items);
+        if (items.Count == 0)
+        {
+            return Result.Success<IReadOnlyList<HorasPorTurnoEmpleadoDto>>([]);
+        }
+
+        var desdeUtc = items.Min(x => x.PeriodoInicio);
+        var hastaUtc = items.Max(x => x.PeriodoFin);
+
+        var novedades = await _context.Novedades
+            .AsNoTracking()
+            .Where(n => n.IdEmpleado == idEmpleado &&
+                        n.CodEstadoSolicitud == EstadosSolicitud.Aprobada &&
+                        n.Inicio < hastaUtc && n.Fin > desdeUtc)
+            .Select(n => new { n.Inicio, n.Fin, Nombre = n.TipoNovedad.Nombre })
+            .ToListAsync(cancellationToken);
+
+        var vacaciones = await _context.SolicitudesVacaciones
+            .AsNoTracking()
+            .Where(sv => sv.IdEmpleado == idEmpleado &&
+                         sv.CodEstadoSolicitud == EstadosSolicitud.Aprobada &&
+                         sv.FechaInicio <= request.Hasta && sv.FechaFin >= request.Desde)
+            .Select(sv => new { sv.FechaInicio, sv.FechaFin })
+            .ToListAsync(cancellationToken);
+
+        var resultado = items.Select(x =>
+        {
+            string? novedadQueExplica = novedades
+                .Where(n => n.Inicio < x.PeriodoFin && n.Fin > x.PeriodoInicio)
+                .Select(n => n.Nombre)
+                .FirstOrDefault();
+
+            if (novedadQueExplica == null && vacaciones.Any(v => v.FechaInicio <= x.Fecha && v.FechaFin >= x.Fecha))
+            {
+                novedadQueExplica = "Vacaciones";
+            }
+
+            bool esJustificado = !string.IsNullOrEmpty(novedadQueExplica);
+            bool sinAsistenciaEfectiva = x.SinAsistencia && !esJustificado;
+            int diferenciaMinutos = (esJustificado && x.MinutosTrabajados == 0)
+                ? 0
+                : (x.MinutosTrabajados - x.MinutosProgramados);
+
+            return new HorasPorTurnoEmpleadoDto(
+                x.IdAsignacion,
+                x.Fecha,
+                x.IdTurno,
+                x.NombreTurno,
+                x.MinutosProgramados,
+                x.MinutosTrabajados,
+                diferenciaMinutos,
+                x.HoraEntrada,
+                x.HoraSalida,
+                x.MinutosTarde,
+                sinAsistenciaEfectiva,
+                novedadQueExplica,
+                esJustificado);
+        }).ToList();
+
+        return Result.Success<IReadOnlyList<HorasPorTurnoEmpleadoDto>>(resultado);
     }
 }
 

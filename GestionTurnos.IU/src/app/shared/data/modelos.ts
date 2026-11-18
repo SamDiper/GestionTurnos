@@ -357,6 +357,8 @@ export interface HorasPorTurno {
   readonly horaSalida: string | null;
   readonly minutosTarde: number | null;
   readonly sinAsistencia?: boolean;
+  readonly novedad?: string | null;
+  readonly esJustificado?: boolean;
 }
 
 export interface PanelInicial {

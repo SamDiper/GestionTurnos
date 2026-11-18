@@ -24,7 +24,9 @@ public sealed record HorasPorTurnoEmpleadoDto(
     DateTimeOffset? HoraEntrada,
     DateTimeOffset? HoraSalida,
     int? MinutosTarde,
-    bool SinAsistencia);
+    bool SinAsistencia,
+    string? Novedad = null,
+    bool EsJustificado = false);
 
 public sealed record ConsolidadoHorasEmpleadoDto(
     DateOnly Periodo,

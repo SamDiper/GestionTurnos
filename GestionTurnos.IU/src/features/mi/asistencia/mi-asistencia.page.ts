@@ -66,8 +66,9 @@ import { MarcajeRapidoCardComponent } from '../components/marcaje-rapido-card.co
               (ngModelChange)="filtroEstado.set($event)"
             >
               <option value="TODOS">Todos los turnos ({{ horas().length }})</option>
-              <option value="FALTANTES">Días faltantes / Sin marcaje ({{ totales().sinMarcaje }})</option>
-              <option value="ASISTIDOS">Con asistencia ({{ horas().length - totales().sinMarcaje }})</option>
+              <option value="ASISTIDOS">Con asistencia ({{ totalAsistidos() }})</option>
+              <option value="JUSTIFICADOS">Incapacidades / Justificados ({{ totales().justificados }})</option>
+              <option value="FALTANTES">Días sin marcaje ({{ totales().sinMarcaje }})</option>
             </select>
             <select aria-label="Período" class="filtro-select text-xs" (change)="cambiarDias(+$any($event.target).value)">
               <option value="7">Últimos 7 días</option>
@@ -97,7 +98,11 @@ import { MarcajeRapidoCardComponent } from '../components/marcaje-rapido-card.co
               </thead>
               <tbody>
                 @for (h of horasFiltradas(); track h.idAsignacion) {
-                  <tr [class.bg-rose-50/40]="esFaltante(h)" class="transition-colors hover:bg-slate-50">
+                  <tr
+                    [class.bg-rose-50/40]="esFaltante(h)"
+                    [class.bg-indigo-50/30]="esJustificado(h)"
+                    class="transition-colors hover:bg-slate-50"
+                  >
                     <td class="whitespace-nowrap font-semibold">{{ formatearFecha(h.fecha) }}</td>
                     <td>{{ h.nombreTurno }}</td>
                     <td>
@@ -106,6 +111,10 @@ import { MarcajeRapidoCardComponent } from '../components/marcaje-rapido-card.co
                         @if (h.minutosTarde) {
                           <span class="block text-xs font-semibold text-amber-600">{{ h.minutosTarde }} min tarde</span>
                         }
+                      } @else if (esJustificado(h)) {
+                        <span class="inline-flex items-center rounded bg-indigo-100/80 px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                          {{ h.novedad || 'Incapacidad médica' }}
+                        </span>
                       } @else {
                         <span class="inline-flex items-center rounded bg-rose-100/80 px-2 py-0.5 text-xs font-semibold text-rose-700">
                           Sin entrada
@@ -115,6 +124,10 @@ import { MarcajeRapidoCardComponent } from '../components/marcaje-rapido-card.co
                     <td>
                       @if (h.horaSalida) {
                         <span class="font-mono text-xs">{{ formatearHora(h.horaSalida) }}</span>
+                      } @else if (esJustificado(h)) {
+                        <span class="inline-flex items-center rounded bg-indigo-100/80 px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                          {{ h.novedad || 'Incapacidad médica' }}
+                        </span>
                       } @else if (h.horaEntrada) {
                         <span class="inline-flex items-center rounded bg-amber-100/80 px-2 py-0.5 text-xs font-medium text-amber-800">
                           Sin salida
@@ -126,11 +139,21 @@ import { MarcajeRapidoCardComponent } from '../components/marcaje-rapido-card.co
                       }
                     </td>
                     <td class="font-mono text-xs">{{ minutosAHoras(h.minutosTrabajados) }}</td>
-                    <td class="font-semibold text-xs" [class.text-peligro]="h.diferenciaMinutos < 0" [class.text-exito]="h.diferenciaMinutos >= 0">
-                      {{ minutosAHoras(h.diferenciaMinutos) }}
+                    <td
+                      class="font-semibold text-xs"
+                      [class.text-peligro]="!esJustificado(h) && h.diferenciaMinutos < 0"
+                      [class.text-exito]="!esJustificado(h) && h.diferenciaMinutos >= 0"
+                      [class.text-slate-500]="esJustificado(h)"
+                    >
+                      {{ esJustificado(h) ? '0 h 00 min' : minutosAHoras(h.diferenciaMinutos) }}
                     </td>
                     <td>
-                      @if (esFaltante(h)) {
+                      @if (esJustificado(h)) {
+                        <span class="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-100 px-2.5 py-0.5 text-xs font-bold text-indigo-800">
+                          <span class="h-1.5 w-1.5 rounded-full bg-indigo-600" aria-hidden="true"></span>
+                          {{ h.novedad || 'Incapacidad médica' }}
+                        </span>
+                      } @else if (esFaltante(h)) {
                         <span class="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-800">
                           <span class="h-1.5 w-1.5 rounded-full bg-rose-500" aria-hidden="true"></span>
                           Día faltante
@@ -153,6 +176,8 @@ import { MarcajeRapidoCardComponent } from '../components/marcaje-rapido-card.co
                     <td colspan="7" class="py-6 text-center text-slate-600">
                       @if (filtroEstado() === 'FALTANTES') {
                         ¡Excelente! No tienes días faltantes ni inasistencias en este período.
+                      } @else if (filtroEstado() === 'JUSTIFICADOS') {
+                        No tienes novedades ni incapacidades en este período.
                       } @else {
                         No hay turnos registrados en el período.
                       }
@@ -177,21 +202,27 @@ export class MiAsistenciaPageComponent implements OnInit {
   protected readonly horas = signal<readonly HorasPorTurno[]>([]);
   protected readonly cargando = signal(true);
   protected readonly error = signal<string | null>(null);
-  protected readonly filtroEstado = signal<'TODOS' | 'FALTANTES' | 'ASISTIDOS'>('TODOS');
+  protected readonly filtroEstado = signal<'TODOS' | 'FALTANTES' | 'JUSTIFICADOS' | 'ASISTIDOS'>('TODOS');
 
   protected readonly totales = computed(() =>
     this.horas().reduce(
       (t, h) => {
-        const esFaltante = (!h.horaEntrada && !h.horaSalida) || Boolean(h.sinAsistencia);
+        const justificado = this.esJustificado(h);
+        const faltante = this.esFaltante(h);
         return {
           programados: t.programados + h.minutosProgramados,
           trabajados: t.trabajados + h.minutosTrabajados,
           tardes: t.tardes + (h.minutosTarde ? 1 : 0),
-          sinMarcaje: t.sinMarcaje + (esFaltante ? 1 : 0),
+          sinMarcaje: t.sinMarcaje + (faltante ? 1 : 0),
+          justificados: t.justificados + (justificado ? 1 : 0),
         };
       },
-      { programados: 0, trabajados: 0, tardes: 0, sinMarcaje: 0 }
+      { programados: 0, trabajados: 0, tardes: 0, sinMarcaje: 0, justificados: 0 }
     )
+  );
+
+  protected readonly totalAsistidos = computed(
+    () => this.horas().filter((h) => !this.esFaltante(h) && !this.esJustificado(h)).length
   );
 
   protected readonly horasFiltradas = computed(() => {
@@ -200,8 +231,11 @@ export class MiAsistenciaPageComponent implements OnInit {
     if (filtro === 'FALTANTES') {
       return lista.filter((h) => this.esFaltante(h));
     }
+    if (filtro === 'JUSTIFICADOS') {
+      return lista.filter((h) => this.esJustificado(h));
+    }
     if (filtro === 'ASISTIDOS') {
-      return lista.filter((h) => !this.esFaltante(h));
+      return lista.filter((h) => !this.esFaltante(h) && !this.esJustificado(h));
     }
     return lista;
   });
@@ -230,7 +264,14 @@ export class MiAsistenciaPageComponent implements OnInit {
     });
   }
 
+  protected esJustificado(h: HorasPorTurno): boolean {
+    return Boolean(h.esJustificado || h.novedad);
+  }
+
   protected esFaltante(h: HorasPorTurno): boolean {
+    if (this.esJustificado(h)) {
+      return false;
+    }
     return (!h.horaEntrada && !h.horaSalida) || Boolean(h.sinAsistencia);
   }
 }
