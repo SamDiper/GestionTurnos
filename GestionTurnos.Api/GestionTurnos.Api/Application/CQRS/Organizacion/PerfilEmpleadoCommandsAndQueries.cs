@@ -236,6 +236,10 @@ public sealed class CambiarMiContrasenaCommandHandler : IRequestHandler<CambiarM
 
             usuario.HashContrasena = _passwordHasher.Hash(request.NuevaContrasena);
 
+            // Cierra la sesión en todos los dispositivos; el cliente vuelve a ingresar con la contraseña nueva.
+            await Application.Services.Sesiones.SesionesService.RevocarTodasAsync(
+                _context, usuario.IdUsuario, Domain.Entities.Seguridad.MotivosRevocacionSesion.CambioContrasena, cancellationToken);
+
             // Inserción manual en auditoria.bitacora_negocio (Sección 3.5 y Sección 7)
             var bitacora = new BitacoraNegocio
             {

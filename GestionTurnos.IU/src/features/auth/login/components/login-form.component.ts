@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { ApiClient, AuthService, NotificationService } from '../../../../app/core';
-import { UiButtonComponent, UiNotchedFieldComponent } from '../../../../app/shared/ui';
+import { ApiClient, AuthService, NotificationService, PwaUpdateService } from '../../../../app/core';
+import { UiButtonComponent, UiCheckComponent, UiNotchedFieldComponent } from '../../../../app/shared/ui';
 
 @Component({
   selector: 'app-login-form',
-  imports: [RouterLink, UiNotchedFieldComponent, UiButtonComponent],
+  imports: [RouterLink, UiNotchedFieldComponent, UiButtonComponent, UiCheckComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <form (submit)="enviar($event)" novalidate class="space-y-5">
@@ -42,6 +42,14 @@ import { UiButtonComponent, UiNotchedFieldComponent } from '../../../../app/shar
         (valorCambio)="contrasena.set($event)"
       />
 
+      <ui-check
+        id="login-recordar"
+        etiqueta="Mantener la sesión iniciada"
+        ayuda="No vuelvas a ingresar en este dispositivo. No lo actives en equipos compartidos."
+        [marcado]="recordar()"
+        (marcadoCambio)="recordar.set($event)"
+      />
+
       <div class="pt-1">
         <ui-button tipo="submit" [anchoCompleto]="true" [cargando]="enviando()">
           Iniciar sesión
@@ -67,6 +75,8 @@ export class LoginFormComponent {
 
   readonly correo = signal('');
   readonly contrasena = signal('');
+  /** Activado por defecto en el celular (app instalada o navegador móvil); desactivado en computadores. */
+  readonly recordar = signal(inject(PwaUpdateService).esMovil || PwaUpdateService.detectarStandalone());
   readonly enviando = signal(false);
   readonly errorGeneral = signal<string | null>(null);
   readonly erroresCampo = signal<Record<string, string>>({});
@@ -91,7 +101,7 @@ export class LoginFormComponent {
     this.enviando.set(true);
 
     this.auth
-      .iniciarSesion({ correo: this.correo().trim(), contrasena: this.contrasena() })
+      .iniciarSesion({ correo: this.correo().trim(), contrasena: this.contrasena(), recordar: this.recordar() })
       .subscribe({
         next: () => {
           this.enviando.set(false);

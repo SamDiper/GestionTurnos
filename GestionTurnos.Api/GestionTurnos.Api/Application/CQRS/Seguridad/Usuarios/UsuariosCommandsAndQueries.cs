@@ -556,6 +556,10 @@ public sealed class RestablecerContrasenaCommandHandler : IRequestHandler<Restab
 
             usuario.HashContrasena = _passwordHasher.Hash(request.NuevaContrasena);
 
+            // Un restablecimiento cierra la sesión del usuario en todos sus dispositivos.
+            await Application.Services.Sesiones.SesionesService.RevocarTodasAsync(
+                _context, usuario.IdUsuario, Domain.Entities.Seguridad.MotivosRevocacionSesion.CambioContrasena, cancellationToken);
+
             await _context.BitacoraNegocio.AddAsync(new BitacoraNegocio
             {
                 FechaHora = DateTimeOffset.UtcNow,

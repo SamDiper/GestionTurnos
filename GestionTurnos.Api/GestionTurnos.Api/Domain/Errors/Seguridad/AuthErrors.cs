@@ -7,6 +7,9 @@ namespace GestionTurnos.Api.Domain.Errors.Seguridad;
 /// </summary>
 public static class AuthErrors
 {
+    public static readonly Error SesionInvalida = new(
+        "Auth.SesionInvalida", "Tu sesión expiró o fue cerrada. Ingresa nuevamente.", ErrorType.Unauthorized);
+
     public static readonly Error Unauthorized = new(
         "Auth.Unauthorized", "El usuario no está autenticado.", ErrorType.Unauthorized);
 

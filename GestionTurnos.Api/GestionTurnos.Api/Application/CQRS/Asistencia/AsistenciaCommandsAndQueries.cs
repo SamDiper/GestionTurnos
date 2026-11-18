@@ -2,6 +2,7 @@ using FluentValidation;
 using GestionTurnos.Api.Application.Common.Security;
 using GestionTurnos.Api.Application.DTOs.Asistencia;
 using GestionTurnos.Api.Application.Interfaces;
+using GestionTurnos.Api.Application.Services.Asistencia;
 using GestionTurnos.Api.Domain.Entities.Asistencia;
 using GestionTurnos.Api.Domain.Entities.Organizacion;
 using GestionTurnos.Api.Domain.Enums;
@@ -42,21 +43,13 @@ public sealed class RegistrarMiEntradaCommandValidator : AbstractValidator<Regis
 
 public sealed class RegistrarMiEntradaCommandHandler : IRequestHandler<RegistrarMiEntradaCommand, Result<long>>
 {
-    private readonly GestionTurnosContext _context;
-    private readonly IUnitOfWork _unitOfWork;
     private readonly IEmpleadoSesionService _empleadoSesionService;
-    private readonly IConfiguration _configuration;
+    private readonly MarcacionEmpleadoService _marcacion;
 
-    public RegistrarMiEntradaCommandHandler(
-        GestionTurnosContext context,
-        IUnitOfWork unitOfWork,
-        IEmpleadoSesionService empleadoSesionService,
-        IConfiguration configuration)
+    public RegistrarMiEntradaCommandHandler(IEmpleadoSesionService empleadoSesionService, MarcacionEmpleadoService marcacion)
     {
-        _context = context;
-        _unitOfWork = unitOfWork;
         _empleadoSesionService = empleadoSesionService;
-        _configuration = configuration;
+        _marcacion = marcacion;
     }
 
     public async Task<Result<long>> Handle(RegistrarMiEntradaCommand request, CancellationToken cancellationToken)
@@ -67,71 +60,13 @@ public sealed class RegistrarMiEntradaCommandHandler : IRequestHandler<Registrar
             return Result.Failure<long>(idEmpleadoResult.Error);
         }
 
-        var idEmpleado = idEmpleadoResult.Value;
+        // Reglas comunes (jornada vencida, bloqueo de concurrencia, turno vigente): MarcacionEmpleadoService.
+        var resultado = await _marcacion.MarcarAsync(
+            idEmpleadoResult.Value, AccionMarcacion.Entrada, request.CodFuenteMarcacion, null, cancellationToken);
 
-        // No permitir una entrada si el empleado ya tiene un registro con hora_salida IS NULL (Sección 3.6)
-        bool tieneRegistroAbierto = await _context.RegistrosAsistencia
-            .AsNoTracking()
-            .AnyAsync(r => r.IdEmpleado == idEmpleado && r.HoraSalida == null, cancellationToken);
-
-        if (tieneRegistroAbierto)
-        {
-            return Result.Failure<long>(new Error(
-                "Asistencia.RegistroEnCurso",
-                "Ya tienes un registro de asistencia en curso sin hora de salida.",
-                ErrorType.Conflict));
-        }
-
-        // La hora siempre es now() del servidor; no aceptar la hora del cliente
-        var ahoraServidor = DateTimeOffset.UtcNow;
-        var fechaHoy = DateOnly.FromDateTime(ahoraServidor.UtcDateTime);
-
-        // Buscar el turno que corresponde en ventana [lower(periodo) - 60 min, upper(periodo))
-        // y que aún no tenga registro de asistencia
-        var candidatos = await _context.Asignaciones
-            .AsNoTracking()
-            .Where(a => a.IdEmpleado == idEmpleado &&
-                        a.CodEstadoAsignacion != EstadosAsignacion.Anulada &&
-                        a.Fecha >= fechaHoy.AddDays(-1) &&
-                        a.Fecha <= fechaHoy.AddDays(1) &&
-                        !_context.RegistrosAsistencia.Any(r => r.IdAsignacion == a.IdAsignacion))
-            .ToListAsync(cancellationToken);
-
-        var turnoCorrespondiente = candidatos
-            .Where(a => ahoraServidor >= a.Periodo.Inicio.AddMinutes(-60) &&
-                        ahoraServidor < a.Periodo.Fin)
-            .OrderBy(a => a.Periodo.Inicio)
-            .FirstOrDefault();
-
-        bool permitirSinTurno = _configuration.GetValue<bool>("AppSettings:PermitirAsistenciaSinTurno", false);
-
-        if (turnoCorrespondiente is null && !permitirSinTurno)
-        {
-            return Result.Failure<long>(new Error(
-                "Asistencia.SinTurnoProgramado",
-                "No tienes un turno programado vigente para registrar entrada en este horario.",
-                ErrorType.Conflict));
-        }
-
-        var nuevoRegistro = new RegistroAsistencia
-        {
-            IdEmpleado = idEmpleado,
-            IdAsignacion = turnoCorrespondiente?.IdAsignacion,
-            HoraEntrada = ahoraServidor,
-            CodFuenteMarcacion = request.CodFuenteMarcacion.Trim().ToUpperInvariant(),
-            CreadoEn = ahoraServidor
-        };
-
-        try
-        {
-            await _context.RegistrosAsistencia.AddAsync(nuevoRegistro, cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            return Result.Success(nuevoRegistro.IdRegistro);
-        }
-        catch (Exception ex)
-        {
-            return Result.Failure<long>(DatabaseErrorTranslator.Translate(ex));
-        }
+        return resultado.IsSuccess
+            ? Result.Success(resultado.Value.IdRegistro)
+            : Result.Failure<long>(resultado.Error);
     }
 }
 
@@ -144,21 +79,13 @@ public sealed record RegistrarMiSalidaCommand : IRequest<Result<long>>, IRequire
 
 public sealed class RegistrarMiSalidaCommandHandler : IRequestHandler<RegistrarMiSalidaCommand, Result<long>>
 {
-    private readonly GestionTurnosContext _context;
-    private readonly IUnitOfWork _unitOfWork;
     private readonly IEmpleadoSesionService _empleadoSesionService;
-    private readonly ILiquidacionHorasCalculator _liquidacionCalculator;
+    private readonly MarcacionEmpleadoService _marcacion;
 
-    public RegistrarMiSalidaCommandHandler(
-        GestionTurnosContext context,
-        IUnitOfWork unitOfWork,
-        IEmpleadoSesionService empleadoSesionService,
-        ILiquidacionHorasCalculator liquidacionCalculator)
+    public RegistrarMiSalidaCommandHandler(IEmpleadoSesionService empleadoSesionService, MarcacionEmpleadoService marcacion)
     {
-        _context = context;
-        _unitOfWork = unitOfWork;
         _empleadoSesionService = empleadoSesionService;
-        _liquidacionCalculator = liquidacionCalculator;
+        _marcacion = marcacion;
     }
 
     public async Task<Result<long>> Handle(RegistrarMiSalidaCommand request, CancellationToken cancellationToken)
@@ -169,38 +96,13 @@ public sealed class RegistrarMiSalidaCommandHandler : IRequestHandler<RegistrarM
             return Result.Failure<long>(idEmpleadoResult.Error);
         }
 
-        var idEmpleado = idEmpleadoResult.Value;
+        // Cierra la jornada y liquida horas en la misma transacción (Sección 6.3).
+        var resultado = await _marcacion.MarcarAsync(
+            idEmpleadoResult.Value, AccionMarcacion.Salida, FuentesMarcacionCodigos.Web, null, cancellationToken);
 
-        try
-        {
-            await _unitOfWork.BeginTransactionAsync(cancellationToken);
-
-            var registroAbierto = await _context.RegistrosAsistencia
-                .FirstOrDefaultAsync(r => r.IdEmpleado == idEmpleado && r.HoraSalida == null, cancellationToken);
-
-            if (registroAbierto is null)
-            {
-                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-                return Result.Failure<long>(new Error(
-                    "Asistencia.SinEntradaAbierta",
-                    "No tienes un registro de entrada pendiente por cerrar.",
-                    ErrorType.NotFound));
-            }
-
-            registroAbierto.HoraSalida = DateTimeOffset.UtcNow;
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            // En la misma transacción ejecuta la liquidación de horas (Sección 6.3)
-            await _liquidacionCalculator.LiquidarRegistroAsync(registroAbierto.IdRegistro, cancellationToken);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return Result.Success(registroAbierto.IdRegistro);
-        }
-        catch (Exception ex)
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            return Result.Failure<long>(DatabaseErrorTranslator.Translate(ex));
-        }
+        return resultado.IsSuccess
+            ? Result.Success(resultado.Value.IdRegistro)
+            : Result.Failure<long>(resultado.Error);
     }
 }
 
@@ -251,27 +153,18 @@ public sealed class MarcarAsistenciaPorQrCommandValidator : AbstractValidator<Ma
 
 public sealed class MarcarAsistenciaPorQrCommandHandler : IRequestHandler<MarcarAsistenciaPorQrCommand, Result<ResultadoMarcacionQrDto>>
 {
-    private readonly GestionTurnosContext _context;
-    private readonly IUnitOfWork _unitOfWork;
     private readonly IEmpleadoSesionService _empleadoSesionService;
-    private readonly ILiquidacionHorasCalculator _liquidacionCalculator;
     private readonly IQrEstacionService _qrEstacionService;
-    private readonly IConfiguration _configuration;
+    private readonly MarcacionEmpleadoService _marcacion;
 
     public MarcarAsistenciaPorQrCommandHandler(
-        GestionTurnosContext context,
-        IUnitOfWork unitOfWork,
         IEmpleadoSesionService empleadoSesionService,
-        ILiquidacionHorasCalculator liquidacionCalculator,
         IQrEstacionService qrEstacionService,
-        IConfiguration configuration)
+        MarcacionEmpleadoService marcacion)
     {
-        _context = context;
-        _unitOfWork = unitOfWork;
         _empleadoSesionService = empleadoSesionService;
-        _liquidacionCalculator = liquidacionCalculator;
         _qrEstacionService = qrEstacionService;
-        _configuration = configuration;
+        _marcacion = marcacion;
     }
 
     public async Task<Result<ResultadoMarcacionQrDto>> Handle(MarcarAsistenciaPorQrCommand request, CancellationToken cancellationToken)
@@ -294,121 +187,43 @@ public sealed class MarcarAsistenciaPorQrCommandHandler : IRequestHandler<Marcar
                 ErrorType.Validation));
         }
 
-        var ahoraServidor = DateTimeOffset.UtcNow;
-        var horaLocalCol = ahoraServidor.ToOffset(TimeSpan.FromHours(-5));
-        var horaStr = horaLocalCol.ToString("hh:mm tt");
-
-        // 2. Determinar si es Entrada o Salida
-        var accionDeseada = request.Accion.Trim().ToUpperInvariant();
-        var registroAbierto = await _context.RegistrosAsistencia
-            .FirstOrDefaultAsync(r => r.IdEmpleado == idEmpleado && r.HoraSalida == null, cancellationToken);
-
-        bool debeMarcarSalida = accionDeseada == "SALIDA" || (accionDeseada == "AUTO" && registroAbierto is not null);
-
-        if (debeMarcarSalida)
+        // 2. AUTO: entrada si no hay jornada abierta, salida si la hay (con las reglas de MarcacionEmpleadoService).
+        var accion = request.Accion.Trim().ToUpperInvariant() switch
         {
-            if (registroAbierto is null)
-            {
-                return Result.Failure<ResultadoMarcacionQrDto>(new Error(
-                    "Asistencia.SinEntradaAbierta",
-                    "No tienes un registro de entrada pendiente por cerrar.",
-                    ErrorType.NotFound));
-            }
+            "ENTRADA" => AccionMarcacion.Entrada,
+            "SALIDA" => AccionMarcacion.Salida,
+            _ => AccionMarcacion.Auto
+        };
 
-            try
-            {
-                await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        // La ubicación (si el teléfono la entregó) queda en la observación para auditoría.
+        string ubicacion = request.Latitud.HasValue && request.Longitud.HasValue
+            ? FormattableString.Invariant($" @ {request.Latitud.Value:F5},{request.Longitud.Value:F5}")
+            : string.Empty;
 
-                registroAbierto.HoraSalida = ahoraServidor;
-                var observacionSalida = $"Salida QR: {validacion.CodigoEstacion}";
-                registroAbierto.Observacion = string.IsNullOrWhiteSpace(registroAbierto.Observacion)
-                    ? observacionSalida
-                    : $"{registroAbierto.Observacion} | {observacionSalida}";
+        // La etiqueta Entrada/Salida se decide después; se usa "QR" para no adivinar el tipo.
+        var resultado = await _marcacion.MarcarAsync(
+            idEmpleado,
+            accion,
+            FuentesMarcacionCodigos.Movil,
+            $"QR {validacion.CodigoEstacion}{ubicacion}",
+            cancellationToken);
 
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-                // Liquidación automática de horas
-                await _liquidacionCalculator.LiquidarRegistroAsync(registroAbierto.IdRegistro, cancellationToken);
-                await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-                return Result.Success(new ResultadoMarcacionQrDto(
-                    registroAbierto.IdRegistro,
-                    "SALIDA",
-                    $"¡Salida registrada con éxito a las {horaStr}!",
-                    ahoraServidor,
-                    validacion.CodigoEstacion));
-            }
-            catch (Exception ex)
-            {
-                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-                return Result.Failure<ResultadoMarcacionQrDto>(DatabaseErrorTranslator.Translate(ex));
-            }
-        }
-        else
+        if (resultado.IsFailure)
         {
-            // Debe marcar Entrada
-            if (registroAbierto is not null)
-            {
-                return Result.Failure<ResultadoMarcacionQrDto>(new Error(
-                    "Asistencia.RegistroEnCurso",
-                    "Ya tienes un registro de entrada en curso sin hora de salida. Marca salida primero.",
-                    ErrorType.Conflict));
-            }
-
-            var fechaHoy = DateOnly.FromDateTime(ahoraServidor.UtcDateTime);
-
-            var candidatos = await _context.Asignaciones
-                .AsNoTracking()
-                .Where(a => a.IdEmpleado == idEmpleado &&
-                            a.CodEstadoAsignacion != EstadosAsignacion.Anulada &&
-                            a.Fecha >= fechaHoy.AddDays(-1) &&
-                            a.Fecha <= fechaHoy.AddDays(1) &&
-                            !_context.RegistrosAsistencia.Any(r => r.IdAsignacion == a.IdAsignacion))
-                .ToListAsync(cancellationToken);
-
-            var turnoCorrespondiente = candidatos
-                .Where(a => ahoraServidor >= a.Periodo.Inicio.AddMinutes(-60) &&
-                            ahoraServidor < a.Periodo.Fin)
-                .OrderBy(a => a.Periodo.Inicio)
-                .FirstOrDefault();
-
-            bool permitirSinTurno = _configuration.GetValue<bool>("AppSettings:PermitirAsistenciaSinTurno", false);
-
-            if (turnoCorrespondiente is null && !permitirSinTurno)
-            {
-                return Result.Failure<ResultadoMarcacionQrDto>(new Error(
-                    "Asistencia.SinTurnoProgramado",
-                    "No tienes un turno programado vigente para registrar entrada en este horario.",
-                    ErrorType.Conflict));
-            }
-
-            var nuevoRegistro = new RegistroAsistencia
-            {
-                IdEmpleado = idEmpleado,
-                IdAsignacion = turnoCorrespondiente?.IdAsignacion,
-                HoraEntrada = ahoraServidor,
-                CodFuenteMarcacion = FuentesMarcacionCodigos.Movil,
-                Observacion = $"Entrada QR: {validacion.CodigoEstacion}",
-                CreadoEn = ahoraServidor
-            };
-
-            try
-            {
-                await _context.RegistrosAsistencia.AddAsync(nuevoRegistro, cancellationToken);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-                return Result.Success(new ResultadoMarcacionQrDto(
-                    nuevoRegistro.IdRegistro,
-                    "ENTRADA",
-                    $"¡Entrada registrada con éxito a las {horaStr}!",
-                    ahoraServidor,
-                    validacion.CodigoEstacion));
-            }
-            catch (Exception ex)
-            {
-                return Result.Failure<ResultadoMarcacionQrDto>(DatabaseErrorTranslator.Translate(ex));
-            }
+            return Result.Failure<ResultadoMarcacionQrDto>(resultado.Error);
         }
+
+        var r = resultado.Value;
+        var mensaje = r.TipoAccion == MarcacionEmpleadoService.TipoSalida
+            ? $"¡Salida registrada con éxito a las {r.HoraLocal}!"
+            : $"¡Entrada registrada con éxito a las {r.HoraLocal}!";
+
+        return Result.Success(new ResultadoMarcacionQrDto(
+            r.IdRegistro,
+            r.TipoAccion,
+            r.Aviso is null ? mensaje : $"{mensaje} {r.Aviso}",
+            r.Hora,
+            validacion.CodigoEstacion));
     }
 }
 
@@ -519,7 +334,8 @@ public sealed class RegistrarOCorregirAsistenciaManualCommandHandler
                 .AsNoTracking()
                 .Where(r => r.IdEmpleado == request.IdEmpleado &&
                             (!esCorreccion || r.IdRegistro != request.IdRegistro!.Value))
-                .Where(r => r.HoraSalida == null || r.HoraSalida > request.HoraEntrada);
+                // Un registro con "salida no registrada" no tiene fin conocido: no bloquea marcaciones posteriores.
+                .Where(r => (r.HoraSalida == null && !r.SalidaNoRegistrada) || r.HoraSalida > request.HoraEntrada);
 
             // Sin salida, el registro queda abierto hacia adelante: cualquier otro que termine después de la entrada se cruza.
             if (request.HoraSalida.HasValue)
@@ -560,6 +376,7 @@ public sealed class RegistrarOCorregirAsistenciaManualCommandHandler
                 existente.IdAsignacion = request.IdAsignacion;
                 existente.HoraEntrada = request.HoraEntrada;
                 existente.HoraSalida = request.HoraSalida;
+                existente.SalidaNoRegistrada = existente.SalidaNoRegistrada && !request.HoraSalida.HasValue;
                 existente.CodFuenteMarcacion = FuentesMarcacionCodigos.Admin;
                 existente.Observacion = request.Observacion.Trim();
                 existente.RegistradoPor = adminId;

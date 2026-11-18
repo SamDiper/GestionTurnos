@@ -1,4 +1,4 @@
-import { Injectable, effect, inject, signal, untracked } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 import { ApiClient, AuthStore } from '../../core';
 
@@ -23,9 +23,12 @@ export class FotoPerfilStore {
   private readonly _url = signal<string | null>(null);
   readonly url = this._url.asReadonly();
 
+  // Solo cambia al entrar o salir otro usuario, no en cada renovación del token.
+  private readonly idUsuario = computed(() => this.auth.usuario()?.idUsuario ?? null);
+
   constructor() {
     effect(() => {
-      const idUsuario = this.auth.usuario()?.idUsuario;
+      const idUsuario = this.idUsuario();
       untracked(() => {
         this._url.set(null);
         if (idUsuario && this.auth.token()) {

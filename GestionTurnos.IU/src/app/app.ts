@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { SkipLinkComponent } from './layout';
+import { PwaInstallPromptComponent, SkipLinkComponent } from './layout';
 import { UiToastContainerComponent } from './shared/ui';
 
 /**
@@ -10,7 +10,7 @@ import { UiToastContainerComponent } from './shared/ui';
  */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, SkipLinkComponent, UiToastContainerComponent],
+  imports: [RouterOutlet, SkipLinkComponent, UiToastContainerComponent, PwaInstallPromptComponent],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -6,3 +6,4 @@ export * from './topbar/topbar.component';
 export * from './sidebar-nav/sidebar-nav.component';
 export * from './mobile-dock/mobile-dock.component';
 export * from './shell/app-shell.component';
+export * from './pwa-install-prompt/pwa-install-prompt.component';

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { ApiClient, NotificationService } from '../../../app/core';
+import { ApiClient, AuthService, AuthStore, NotificationService } from '../../../app/core';
 import { PerfilEmpleado } from '../../../app/shared/data/modelos';
 import { MiApi } from '../../../app/shared/data/apis';
 import { UiButtonComponent, UiNotchedFieldComponent, UiSkeletonComponent } from '../../../app/shared/ui';
@@ -86,6 +86,8 @@ const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export class MiPerfilPageComponent implements OnInit {
   private readonly api = inject(MiApi);
   private readonly toast = inject(NotificationService);
+  private readonly auth = inject(AuthService);
+  private readonly authStore = inject(AuthStore);
   protected readonly formatearFecha = formatearFecha;
 
   protected readonly perfil = signal<PerfilEmpleado | null>(null);
@@ -165,13 +167,30 @@ export class MiPerfilPageComponent implements OnInit {
     if (Object.keys(errores).length) return;
 
     this.guardandoClave.set(true);
-    this.api.cambiarContrasena(this.actual(), this.nueva()).subscribe({
+    const nueva = this.nueva();
+    this.api.cambiarContrasena(this.actual(), nueva).subscribe({
       next: () => {
-        this.guardandoClave.set(false);
         this.actual.set('');
         this.nueva.set('');
         this.confirmar.set('');
-        this.toast.exito('Tu contraseña se actualizó.');
+        // El cambio cierra la sesión en todos los dispositivos: este vuelve a ingresar con la contraseña nueva.
+        const correo = this.authStore.usuario()?.correo;
+        if (!correo) {
+          this.guardandoClave.set(false);
+          this.auth.finalizarSesionLocal();
+          return;
+        }
+        this.auth.iniciarSesion({ correo, contrasena: nueva, recordar: this.authStore.recordar }).subscribe({
+          next: () => {
+            this.guardandoClave.set(false);
+            this.toast.exito('Tu contraseña se actualizó. Se cerró la sesión en tus otros dispositivos.');
+          },
+          error: () => {
+            this.guardandoClave.set(false);
+            this.toast.alerta('Tu contraseña se actualizó. Ingresa nuevamente con la contraseña nueva.');
+            this.auth.finalizarSesionLocal();
+          },
+        });
       },
       error: (err: unknown) => {
         this.guardandoClave.set(false);

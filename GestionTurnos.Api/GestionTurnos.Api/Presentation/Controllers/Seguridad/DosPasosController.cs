@@ -1,5 +1,6 @@
 using Asp.Versioning;
 using GestionTurnos.Api.Application.CQRS.Seguridad.DosPasos;
+using GestionTurnos.Api.Application.Services.Sesiones;
 using GestionTurnos.Api.Presentation.Contracts.Requests.Seguridad;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -18,8 +19,11 @@ namespace GestionTurnos.Api.Presentation.Controllers.Seguridad;
 [Route("api/v{version:apiVersion}/auth/dos-pasos")]
 public sealed class DosPasosController : BaseApiController
 {
-    public DosPasosController(ISender sender) : base(sender)
+    private readonly SesionesService _sesiones;
+
+    public DosPasosController(ISender sender, SesionesService sesiones) : base(sender)
     {
+        _sesiones = sesiones;
     }
 
     /// <summary>Completa el inicio de sesión con el código enviado al correo.</summary>
@@ -28,7 +32,14 @@ public sealed class DosPasosController : BaseApiController
     public async Task<IActionResult> Verificar([FromBody] VerificarDosPasosRequest request, CancellationToken cancellationToken)
     {
         var result = await Sender.Send(new VerificarInicioSesionDosPasosCommand(request.Correo, request.ClaveVerificacion), cancellationToken);
-        return HandleResult(result);
+        if (result.IsFailure)
+        {
+            return HandleResult(result);
+        }
+
+        // El refresh token se emite recién aquí, cuando el segundo factor ya se verificó.
+        var sesion = await _sesiones.EmitirAsync(result.Value, request.Recordar, Request.Headers.UserAgent.ToString(), cancellationToken);
+        return HandleResult(Domain.Shared.Result.Success(sesion));
     }
 
     /// <summary>Reenvía un código nuevo. Siempre responde 200 (no revela si existe un inicio de sesión pendiente).</summary>

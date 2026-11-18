@@ -30,6 +30,10 @@ public class RegistroAsistenciaConfiguration : IEntityTypeConfiguration<Registro
         builder.Property(x => x.HoraSalida)
             .HasColumnName("hora_salida");
 
+        builder.Property(x => x.SalidaNoRegistrada)
+            .HasColumnName("salida_no_registrada")
+            .IsRequired();
+
         builder.Property(x => x.CodFuenteMarcacion)
             .HasColumnName("cod_fuente_marcacion")
             .HasMaxLength(20)

@@ -31,7 +31,8 @@ public sealed class AuditoriaSaveChangesInterceptor : SaveChangesInterceptor
         "RefreshToken",
         "CodigoVerificacion",
         "CodigoDosPasos",
-        "HashCodigo"
+        "HashCodigo",
+        "HashToken"
     };
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -151,7 +152,9 @@ public sealed class AuditoriaSaveChangesInterceptor : SaveChangesInterceptor
 
         foreach (var entry in context.ChangeTracker.Entries())
         {
+            // Las sesiones de dispositivo cambian en cada renovación del token: auditarlas solo generaría ruido.
             if (entry.Entity is BitacoraNegocio ||
+                entry.Entity is GestionTurnos.Api.Domain.Entities.Seguridad.SesionDispositivo ||
                 entry.Metadata.ClrType.Name.Contains("DataProtectionKey", StringComparison.OrdinalIgnoreCase))
             {
                 continue;

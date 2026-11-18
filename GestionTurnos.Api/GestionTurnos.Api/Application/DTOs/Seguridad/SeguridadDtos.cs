@@ -11,7 +11,9 @@ public sealed record LoginResponseDto(
     string Rol,
     long? IdEmpleado,
     string? NombreCompleto,
-    IReadOnlyList<string> Permisos);
+    IReadOnlyList<string> Permisos,
+    string? RefreshToken = null,
+    DateTimeOffset? RefreshExpiraEn = null);
 
 /// <summary>
 /// DTO de solicitud de registro (Secciones 3.1 y 3.2). Nunca incluye hash_contrasena (Sección 3.1 punto 4 y Sección 9).
