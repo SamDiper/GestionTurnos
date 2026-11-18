@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { Area, AsistenciaAdminApi, OrganizacionApi, PanelAsistenciaDia, PanelAsistenciaTurno} from '../../../app/shared/data';
 import { AuthStore, NotificationService, PERMISOS } from '../../../app/core';
 import { UiButtonComponent, UiIconComponent, UiSkeletonComponent } from '../../../app/shared/ui';
@@ -10,6 +11,7 @@ import {AsistenciaManualDialogComponent,GuardarAsistenciaManualEvento } from './
   selector: 'app-asistencia-admin-page',
   imports: [
     FormsModule,
+    RouterLink,
     UiButtonComponent,
     UiIconComponent,
     UiSkeletonComponent,
@@ -65,6 +67,18 @@ import {AsistenciaManualDialogComponent,GuardarAsistenciaManualEvento } from './
             [ngModel]="fecha()"
             (ngModelChange)="cambiarFecha($event)"
           />
+
+          <a
+            routerLink="/totem-qr"
+            target="_blank"
+            class="inline-flex items-center gap-1.5 rounded-xl border border-teal-600 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-800 shadow-xs hover:bg-teal-100 transition-colors"
+            title="Abrir pantalla tótem de entrada para monitor o tablet"
+          >
+            <svg class="h-4 w-4 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+            </svg>
+            <span>Pantalla Tótem QR</span>
+          </a>
 
           <ui-button variante="secundario" (click)="cargar()">
             <ui-icon nombre="clock" />

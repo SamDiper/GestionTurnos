@@ -205,6 +205,214 @@ public sealed class RegistrarMiSalidaCommandHandler : IRequestHandler<RegistrarM
 }
 
 // =====================================================================
+// MARCAJE POR QR ROTATIVO / TOTEM DE ENTRADA (ESTILO TOTP AUTHENTICATOR)
+// =====================================================================
+
+public sealed record ObtenerTokenQrEstacionQuery(string? CodigoEstacion = null) : IRequest<Result<TokenQrEstacionDto>>;
+
+public sealed class ObtenerTokenQrEstacionQueryHandler : IRequestHandler<ObtenerTokenQrEstacionQuery, Result<TokenQrEstacionDto>>
+{
+    private readonly IQrEstacionService _qrEstacionService;
+
+    public ObtenerTokenQrEstacionQueryHandler(IQrEstacionService qrEstacionService)
+    {
+        _qrEstacionService = qrEstacionService;
+    }
+
+    public Task<Result<TokenQrEstacionDto>> Handle(ObtenerTokenQrEstacionQuery request, CancellationToken cancellationToken)
+    {
+        var tokenDto = _qrEstacionService.GenerarTokenActual(request.CodigoEstacion);
+        return Task.FromResult(Result.Success(tokenDto));
+    }
+}
+
+public sealed record MarcarAsistenciaPorQrCommand(
+    string TokenQr,
+    string Accion = "AUTO",
+    double? Latitud = null,
+    double? Longitud = null) : IRequest<Result<ResultadoMarcacionQrDto>>, IRequireAuthentication;
+
+public sealed class MarcarAsistenciaPorQrCommandValidator : AbstractValidator<MarcarAsistenciaPorQrCommand>
+{
+    public MarcarAsistenciaPorQrCommandValidator()
+    {
+        RuleFor(x => x.TokenQr)
+            .NotEmpty()
+            .WithMessage("El código QR de la estación es obligatorio.");
+
+        RuleFor(x => x.Accion)
+            .NotEmpty()
+            .Must(a => a.Equals("AUTO", StringComparison.OrdinalIgnoreCase) ||
+                       a.Equals("ENTRADA", StringComparison.OrdinalIgnoreCase) ||
+                       a.Equals("SALIDA", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("La acción debe ser 'AUTO', 'ENTRADA' o 'SALIDA'.");
+    }
+}
+
+public sealed class MarcarAsistenciaPorQrCommandHandler : IRequestHandler<MarcarAsistenciaPorQrCommand, Result<ResultadoMarcacionQrDto>>
+{
+    private readonly GestionTurnosContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IEmpleadoSesionService _empleadoSesionService;
+    private readonly ILiquidacionHorasCalculator _liquidacionCalculator;
+    private readonly IQrEstacionService _qrEstacionService;
+    private readonly IConfiguration _configuration;
+
+    public MarcarAsistenciaPorQrCommandHandler(
+        GestionTurnosContext context,
+        IUnitOfWork unitOfWork,
+        IEmpleadoSesionService empleadoSesionService,
+        ILiquidacionHorasCalculator liquidacionCalculator,
+        IQrEstacionService qrEstacionService,
+        IConfiguration configuration)
+    {
+        _context = context;
+        _unitOfWork = unitOfWork;
+        _empleadoSesionService = empleadoSesionService;
+        _liquidacionCalculator = liquidacionCalculator;
+        _qrEstacionService = qrEstacionService;
+        _configuration = configuration;
+    }
+
+    public async Task<Result<ResultadoMarcacionQrDto>> Handle(MarcarAsistenciaPorQrCommand request, CancellationToken cancellationToken)
+    {
+        var idEmpleadoResult = await _empleadoSesionService.ObtenerIdEmpleadoActivoAsync(cancellationToken);
+        if (idEmpleadoResult.IsFailure)
+        {
+            return Result.Failure<ResultadoMarcacionQrDto>(idEmpleadoResult.Error);
+        }
+
+        var idEmpleado = idEmpleadoResult.Value;
+
+        // 1. Validar el token rotativo con la estación y tolerancias de tiempo
+        var validacion = _qrEstacionService.ValidarToken(request.TokenQr, idEmpleado);
+        if (!validacion.EsValido)
+        {
+            return Result.Failure<ResultadoMarcacionQrDto>(new Error(
+                "Asistencia.QrInvalido",
+                validacion.MensajeError ?? "El código QR es inválido o ha expirado. Por favor enfoca el QR actual en pantalla.",
+                ErrorType.Validation));
+        }
+
+        var ahoraServidor = DateTimeOffset.UtcNow;
+        var horaLocalCol = ahoraServidor.ToOffset(TimeSpan.FromHours(-5));
+        var horaStr = horaLocalCol.ToString("hh:mm tt");
+
+        // 2. Determinar si es Entrada o Salida
+        var accionDeseada = request.Accion.Trim().ToUpperInvariant();
+        var registroAbierto = await _context.RegistrosAsistencia
+            .FirstOrDefaultAsync(r => r.IdEmpleado == idEmpleado && r.HoraSalida == null, cancellationToken);
+
+        bool debeMarcarSalida = accionDeseada == "SALIDA" || (accionDeseada == "AUTO" && registroAbierto is not null);
+
+        if (debeMarcarSalida)
+        {
+            if (registroAbierto is null)
+            {
+                return Result.Failure<ResultadoMarcacionQrDto>(new Error(
+                    "Asistencia.SinEntradaAbierta",
+                    "No tienes un registro de entrada pendiente por cerrar.",
+                    ErrorType.NotFound));
+            }
+
+            try
+            {
+                await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+                registroAbierto.HoraSalida = ahoraServidor;
+                var observacionSalida = $"Salida QR: {validacion.CodigoEstacion}";
+                registroAbierto.Observacion = string.IsNullOrWhiteSpace(registroAbierto.Observacion)
+                    ? observacionSalida
+                    : $"{registroAbierto.Observacion} | {observacionSalida}";
+
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                // Liquidación automática de horas
+                await _liquidacionCalculator.LiquidarRegistroAsync(registroAbierto.IdRegistro, cancellationToken);
+                await _unitOfWork.CommitTransactionAsync(cancellationToken);
+
+                return Result.Success(new ResultadoMarcacionQrDto(
+                    registroAbierto.IdRegistro,
+                    "SALIDA",
+                    $"¡Salida registrada con éxito a las {horaStr}!",
+                    ahoraServidor,
+                    validacion.CodigoEstacion));
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                return Result.Failure<ResultadoMarcacionQrDto>(DatabaseErrorTranslator.Translate(ex));
+            }
+        }
+        else
+        {
+            // Debe marcar Entrada
+            if (registroAbierto is not null)
+            {
+                return Result.Failure<ResultadoMarcacionQrDto>(new Error(
+                    "Asistencia.RegistroEnCurso",
+                    "Ya tienes un registro de entrada en curso sin hora de salida. Marca salida primero.",
+                    ErrorType.Conflict));
+            }
+
+            var fechaHoy = DateOnly.FromDateTime(ahoraServidor.UtcDateTime);
+
+            var candidatos = await _context.Asignaciones
+                .AsNoTracking()
+                .Where(a => a.IdEmpleado == idEmpleado &&
+                            a.CodEstadoAsignacion != EstadosAsignacion.Anulada &&
+                            a.Fecha >= fechaHoy.AddDays(-1) &&
+                            a.Fecha <= fechaHoy.AddDays(1) &&
+                            !_context.RegistrosAsistencia.Any(r => r.IdAsignacion == a.IdAsignacion))
+                .ToListAsync(cancellationToken);
+
+            var turnoCorrespondiente = candidatos
+                .Where(a => ahoraServidor >= a.Periodo.Inicio.AddMinutes(-60) &&
+                            ahoraServidor < a.Periodo.Fin)
+                .OrderBy(a => a.Periodo.Inicio)
+                .FirstOrDefault();
+
+            bool permitirSinTurno = _configuration.GetValue<bool>("AppSettings:PermitirAsistenciaSinTurno", false);
+
+            if (turnoCorrespondiente is null && !permitirSinTurno)
+            {
+                return Result.Failure<ResultadoMarcacionQrDto>(new Error(
+                    "Asistencia.SinTurnoProgramado",
+                    "No tienes un turno programado vigente para registrar entrada en este horario.",
+                    ErrorType.Conflict));
+            }
+
+            var nuevoRegistro = new RegistroAsistencia
+            {
+                IdEmpleado = idEmpleado,
+                IdAsignacion = turnoCorrespondiente?.IdAsignacion,
+                HoraEntrada = ahoraServidor,
+                CodFuenteMarcacion = FuentesMarcacionCodigos.Movil,
+                Observacion = $"Entrada QR: {validacion.CodigoEstacion}",
+                CreadoEn = ahoraServidor
+            };
+
+            try
+            {
+                await _context.RegistrosAsistencia.AddAsync(nuevoRegistro, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                return Result.Success(new ResultadoMarcacionQrDto(
+                    nuevoRegistro.IdRegistro,
+                    "ENTRADA",
+                    $"¡Entrada registrada con éxito a las {horaStr}!",
+                    ahoraServidor,
+                    validacion.CodigoEstacion));
+            }
+            catch (Exception ex)
+            {
+                return Result.Failure<ResultadoMarcacionQrDto>(DatabaseErrorTranslator.Translate(ex));
+            }
+        }
+    }
+}
+
+// =====================================================================
 // 3.6 REGISTRO O CORRECCIÓN MANUAL (ADMINISTRADOR - permiso: asistencia.registrar_manual)
 // =====================================================================
 

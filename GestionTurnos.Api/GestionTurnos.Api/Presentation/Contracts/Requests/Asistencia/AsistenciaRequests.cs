@@ -12,3 +12,9 @@ public sealed record RegistrarAsistenciaManualRequest(
     DateTimeOffset? HoraSalida,
     string Observacion);
 
+public sealed record MarcarAsistenciaQrRequest(
+    string TokenQr,
+    string Accion = "AUTO",
+    double? Latitud = null,
+    double? Longitud = null);
+

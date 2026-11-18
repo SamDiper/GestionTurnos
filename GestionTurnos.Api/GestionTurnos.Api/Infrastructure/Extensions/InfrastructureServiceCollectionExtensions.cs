@@ -60,8 +60,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // Seguridad
+        services.AddMemoryCache();
         services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+        services.AddSingleton<IQrEstacionService, QrEstacionService>();
 
         // Contexto e Identidad (incluye resolución obligatoria de id_empleado activo desde BD)
         services.AddHttpContextAccessor();

@@ -51,6 +51,12 @@ export const routes: Routes = [
     ],
   },
   {
+    path: 'totem-qr',
+    title: 'Tótem de Asistencia · Gestión de Turnos',
+    loadComponent: () =>
+      import('../features/totem/totem-qr.page').then((m) => m.TotemQrPageComponent),
+  },
+  {
     path: '404',
     title: 'Página no encontrada · Gestión de Turnos',
     loadComponent: () =>

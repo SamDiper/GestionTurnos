@@ -75,3 +75,13 @@ public sealed record PanelAsistenciaDiaDto(
     int Tardanzas,
     int SinAsistencia,
     IReadOnlyList<PanelAsistenciaTurnoDto> Turnos);
+
+/// <summary>
+/// Resultado del marcaje de asistencia realizado mediante escaneo de código QR de estación.
+/// </summary>
+public sealed record ResultadoMarcacionQrDto(
+    long IdRegistro,
+    string TipoAccion,
+    string Mensaje,
+    DateTimeOffset Hora,
+    string CodigoEstacion);

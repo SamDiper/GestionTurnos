@@ -42,6 +42,39 @@ public sealed class AsistenciaController : BaseApiController
     }
 
     /// <summary>
+    /// Obtiene el token rotativo actual (tipo TOTP / Authenticator) para la pantalla tótem o estación física de entrada.
+    /// Se refresca dinámicamente cada ciclo (ej. 20s) e invalida los códigos anteriores.
+    /// </summary>
+    [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+    [HttpGet("estacion-qr/token")]
+    public async Task<IActionResult> ObtenerTokenEstacionQr(
+        [FromQuery] string? estacion,
+        CancellationToken cancellationToken)
+    {
+        var result = await Sender.Send(new ObtenerTokenQrEstacionQuery(estacion), cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
+    /// Registra la asistencia (Entrada, Salida o detección automática) escaneando el código QR rotativo de la estación.
+    /// Valida vigencia temporal del token (TOTP) y previene adulteraciones o fotos estáticas.
+    /// </summary>
+    [HttpPost("mi-marcar-qr")]
+    public async Task<IActionResult> MarcarAsistenciaPorQr(
+        [FromBody] MarcarAsistenciaQrRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new MarcarAsistenciaPorQrCommand(
+            request.TokenQr,
+            request.Accion,
+            request.Latitud,
+            request.Longitud);
+
+        var result = await Sender.Send(command, cancellationToken);
+        return HandleResult(result);
+    }
+
+    /// <summary>
     /// Detalle de horas programadas vs trabajadas por turno desde asistencia.v_horas_por_turno (Sección 3.4).
     /// </summary>
     [HttpGet("mis-horas/turnos")]
