@@ -70,7 +70,7 @@ import { ApiClient, NotificationService, QrAsistenciaService, ResultadoMarcacion
           <canvas #canvasElement class="hidden"></canvas>
 
           <!-- Retícula y Láser de Escaneo -->
-          @if (!errorCamara() && !resultado()) {
+          @if (!errorCamara() && !resultado() && !errorMarcacion()) {
             <div class="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
               <div
                 class="relative h-56 w-56 rounded-2xl border-2 transition-colors duration-200"
@@ -101,27 +101,54 @@ import { ApiClient, NotificationService, QrAsistenciaService, ResultadoMarcacion
             </div>
           }
 
-          <!-- Estado de Éxito -->
+          <!-- Estado de Éxito: verde para entrada, azul petróleo para salida -->
           @if (resultado(); as res) {
-            <div class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 p-6 text-center gap-3 animate-in zoom-in-95 duration-200">
-              <span class="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 ring-8 ring-emerald-500/10">
-                <svg class="h-9 w-9" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+            <div
+              class="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center animate-in zoom-in-95 duration-200"
+              [class.bg-[#31BBA1]]="res.tipoAccion === 'ENTRADA'"
+              [class.bg-[#1D768A]]="res.tipoAccion !== 'ENTRADA'"
+              role="status"
+            >
+              <span class="flex h-20 w-20 items-center justify-center rounded-full bg-white/20 ring-8 ring-white/10">
+                @if (res.tipoAccion === 'ENTRADA') {
+                  <svg class="h-11 w-11" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                  </svg>
+                } @else {
+                  <svg class="h-11 w-11" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 12H3m12 0-4-4m4 4-4 4M14 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5" />
+                  </svg>
+                }
+              </span>
+              <p class="text-2xl font-extrabold">
+                {{ res.tipoAccion === 'ENTRADA' ? '¡Entrada registrada!' : '¡Salida registrada!' }}
+              </p>
+              <p class="font-mono text-4xl font-black tracking-tight">{{ horaLocal(res.hora) }}</p>
+              <p class="text-sm font-semibold text-white/90">
+                {{ res.tipoAccion === 'ENTRADA' ? 'Buen turno' : 'Hasta pronto' }} · Estación {{ res.codigoEstacion }}
+              </p>
+              @if (aviso(res.mensaje); as av) {
+                <p class="mt-1 rounded-xl bg-white/15 px-3 py-2 text-xs font-medium">{{ av }}</p>
+              }
+            </div>
+          }
+
+          <!-- Error de marcación: se detiene el escaneo para no repetir el mismo error en bucle -->
+          @if (errorMarcacion(); as errM) {
+            <div class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950/95 p-6 text-center" role="alert">
+              <span class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/20 text-amber-300">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                 </svg>
               </span>
-              <div>
-                <span
-                  class="inline-block rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider"
-                  [class.bg-emerald-500/20]="res.tipoAccion === 'ENTRADA'"
-                  [class.text-emerald-300]="res.tipoAccion === 'ENTRADA'"
-                  [class.bg-sky-500/20]="res.tipoAccion === 'SALIDA'"
-                  [class.text-sky-300]="res.tipoAccion === 'SALIDA'"
-                >
-                  {{ res.tipoAccion === 'ENTRADA' ? 'Entrada Registrada' : 'Salida Registrada' }}
-                </span>
-                <p class="mt-2 text-base font-bold text-white">{{ res.mensaje }}</p>
-                <p class="mt-1 text-xs text-slate-400">Estación: {{ res.codigoEstacion }}</p>
-              </div>
+              <p class="text-sm font-semibold text-amber-100">{{ errM }}</p>
+              <button
+                type="button"
+                (click)="reanudarEscaneo()"
+                class="min-h-11 rounded-xl bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+              >
+                Escanear de nuevo
+              </button>
             </div>
           }
 
@@ -207,6 +234,7 @@ export class QrScannerDialogComponent implements OnInit, OnDestroy {
   readonly procesando = signal(false);
   readonly errorCamara = signal<string | null>(null);
   readonly resultado = signal<ResultadoMarcacionQr | null>(null);
+  readonly errorMarcacion = signal<string | null>(null);
   readonly linternaActiva = signal(false);
   readonly tieneLinterna = signal(false);
   readonly multiplesCamaras = signal(false);
@@ -217,8 +245,39 @@ export class QrScannerDialogComponent implements OnInit, OnDestroy {
   private trackVideo: MediaStreamTrack | null = null;
   private camaraFacing: 'environment' | 'user' = 'environment';
   private barcodeDetector: any = null;
+  private audio: AudioContext | null = null;
+
+  /** Hora local (Bogotá) de la marcación devuelta por el servidor. */
+  horaLocal(iso: string): string {
+    return new Date(iso).toLocaleTimeString('es-CO', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'America/Bogota',
+    });
+  }
+
+  /** Texto adicional del servidor (p. ej. una jornada anterior cerrada sin salida). */
+  aviso(mensaje: string): string | null {
+    const corte = mensaje.indexOf('!');
+    const resto = corte >= 0 ? mensaje.slice(corte + 1).trim() : '';
+    return resto || null;
+  }
+
+  reanudarEscaneo(): void {
+    this.errorMarcacion.set(null);
+    this.escaneando = true;
+    this.iniciarBucleEscaneo();
+  }
 
   ngOnInit(): void {
+    // El audio se prepara dentro del toque que abrió el lector: iOS bloquea sonidos creados después.
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      this.audio = AudioCtx ? new AudioCtx() : null;
+    } catch {
+      this.audio = null;
+    }
     if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
       try {
         this.barcodeDetector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
@@ -231,7 +290,11 @@ export class QrScannerDialogComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.detenerCamara();
+    void this.audio?.close().catch(() => undefined);
+    if (this.temporizadorCierre !== null) clearTimeout(this.temporizadorCierre);
   }
+
+  private temporizadorCierre: ReturnType<typeof setTimeout> | null = null;
 
   async iniciarCamara(): Promise<void> {
     this.detenerCamara();
@@ -285,7 +348,7 @@ export class QrScannerDialogComponent implements OnInit, OnDestroy {
 
   private iniciarBucleEscaneo(): void {
     const loop = async () => {
-      if (!this.escaneando || this.procesando() || this.resultado()) {
+      if (!this.escaneando || this.procesando() || this.resultado() || this.errorMarcacion()) {
         return;
       }
 
@@ -340,47 +403,84 @@ export class QrScannerDialogComponent implements OnInit, OnDestroy {
   }
 
   private procesarCodigoEscaneado(token: string): void {
+    // Detener la lectura de inmediato: un segundo cuadro con el mismo QR no debe generar otra marcación.
     this.escaneando = false;
     this.procesando.set(true);
 
     this.emitirBeepExito();
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      navigator.vibrate([60, 40, 60]);
-    }
+    this.vibrar([60, 40, 60]);
 
-    this.qrService.marcarPorQr(token, 'AUTO').subscribe({
-      next: (res) => {
-        this.procesando.set(false);
-        this.resultado.set(res);
-        this.marcado.emit(res);
-        this.toast.exito(res.mensaje);
+    void this.obtenerUbicacionSiPermitida().then((coordenadas) => {
+      this.qrService.marcarPorQr(token, 'AUTO', coordenadas ?? undefined).subscribe({
+        next: (res) => {
+          this.procesando.set(false);
+          this.resultado.set(res);
+          this.marcado.emit(res);
+          this.detenerCamara();
 
-        // Cerrar modal automáticamente tras 2 segundos de confirmación visual
-        setTimeout(() => {
-          this.cerrar();
-        }, 2200);
-      },
-      error: (err: unknown) => {
-        this.procesando.set(false);
-        const errorMsg = ApiClient.extraerMensajeError(err).general;
-        this.toast.error(errorMsg || 'El código QR no pudo ser validado.');
+          // Confirmación visual y cierre automático para volver a la vista principal actualizada.
+          const tieneAviso = this.aviso(res.mensaje) !== null;
+          this.temporizadorCierre = setTimeout(() => this.cerrar(), tieneAviso ? 6000 : 2200);
+        },
+        error: (err: unknown) => {
+          this.procesando.set(false);
+          const http = err as { error?: { code?: string } };
+          const mensaje = ApiClient.extraerMensajeError(err).general || 'El código QR no pudo ser validado.';
+          this.vibrar([200]);
 
-        // Reanudar escaneo tras breve pausa de 1.5s para no bloquear al usuario
-        setTimeout(() => {
-          if (!this.resultado()) {
-            this.escaneando = true;
-            this.iniciarBucleEscaneo();
+          // Un QR vencido se resuelve solo con el siguiente código de la pantalla: se sigue leyendo.
+          if (http?.error?.code === 'Asistencia.QrInvalido') {
+            this.toast.alerta(mensaje);
+            setTimeout(() => {
+              if (!this.resultado()) {
+                this.escaneando = true;
+                this.iniciarBucleEscaneo();
+              }
+            }, 1600);
+            return;
           }
-        }, 1600);
-      },
+
+          // Otros errores (salida demasiado pronto, sin turno...) se muestran y esperan al usuario.
+          this.errorMarcacion.set(mensaje);
+        },
+      });
     });
+  }
+
+  /** Ubicación para auditoría solo si el permiso ya fue concedido (no interrumpe con una solicitud nueva). */
+  private async obtenerUbicacionSiPermitida(): Promise<{ latitud: number; longitud: number } | null> {
+    try {
+      if (!navigator.geolocation || !navigator.permissions?.query) return null;
+      const permiso = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+      if (permiso.state !== 'granted') return null;
+      return await new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ latitud: pos.coords.latitude, longitud: pos.coords.longitude }),
+          () => resolve(null),
+          { enableHighAccuracy: false, timeout: 2500, maximumAge: 60000 }
+        );
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  private vibrar(patron: number[]): void {
+    // iPhone no implementa la vibración web.
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        navigator.vibrate(patron);
+      }
+    } catch {
+      // Ignorado
+    }
   }
 
   private emitirBeepExito(): void {
     try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
+      const ctx = this.audio;
+      if (!ctx) return;
+      void ctx.resume().catch(() => undefined);
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
@@ -420,6 +520,10 @@ export class QrScannerDialogComponent implements OnInit, OnDestroy {
   }
 
   cerrar(): void {
+    if (this.temporizadorCierre !== null) {
+      clearTimeout(this.temporizadorCierre);
+      this.temporizadorCierre = null;
+    }
     this.detenerCamara();
     this.cerrado.emit();
   }

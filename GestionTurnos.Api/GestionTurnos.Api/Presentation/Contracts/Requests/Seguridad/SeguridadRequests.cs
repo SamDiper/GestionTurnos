@@ -1,8 +1,13 @@
 namespace GestionTurnos.Api.Presentation.Contracts.Requests.Seguridad;
 
+/// <param name="Recordar">"Mantener la sesión iniciada en este dispositivo" (sesión renovable de larga duración).</param>
 public sealed record LoginRequest(
     string Correo,
-    string Contrasena);
+    string Contrasena,
+    bool Recordar = false);
+
+/// <summary>Refresh token emitido en el inicio de sesión.</summary>
+public sealed record RefreshTokenRequest(string RefreshToken);
 
 public sealed record SolicitarRegistroRequest(
     string CodTipoDocumento,

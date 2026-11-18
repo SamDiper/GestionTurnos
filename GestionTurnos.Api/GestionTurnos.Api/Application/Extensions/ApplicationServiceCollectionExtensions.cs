@@ -36,6 +36,8 @@ public static class ApplicationServiceCollectionExtensions
 
         // Calculadores aislados de reglas de negocio (Secciones 3.7 y 6.3)
         services.AddScoped<ILiquidacionHorasCalculator, Calculators.LiquidacionHorasCalculator>();
+        services.AddScoped<Services.Asistencia.MarcacionEmpleadoService>();
+        services.AddScoped<Services.Sesiones.SesionesService>();
         services.AddScoped<IDiasVacacionesCalculator, Calculators.DiasVacacionesCalculator>();
 
         // Revisión de conflictos de turnos (sección 9.1): consulta previa, asignación y modificación

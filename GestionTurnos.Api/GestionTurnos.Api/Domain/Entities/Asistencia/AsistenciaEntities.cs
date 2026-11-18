@@ -14,6 +14,12 @@ public class RegistroAsistencia : BaseEntity
     public long? IdAsignacion { get; set; }
     public DateTimeOffset HoraEntrada { get; set; }
     public DateTimeOffset? HoraSalida { get; set; }
+
+    /// <summary>
+    /// La jornada quedó sin salida y se cerró automáticamente al vencer (hora_salida sigue NULL).
+    /// El administrador la corrige con el registro manual.
+    /// </summary>
+    public bool SalidaNoRegistrada { get; set; }
     public string CodFuenteMarcacion { get; set; } = FuentesMarcacionCodigos.Web;
     public string? Observacion { get; set; }
     public long? RegistradoPor { get; set; }

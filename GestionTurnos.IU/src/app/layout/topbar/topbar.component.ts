@@ -63,9 +63,9 @@ import { FotoPerfilDialogComponent } from './foto-perfil-dialog.component';
           <button
             type="button"
             (click)="pwa.instalarPwa()"
-            class="hidden min-h-11 items-center gap-1.5 rounded-lg border border-[#1D768A] bg-[#f0fdfa] px-3 py-1.5 text-xs font-bold text-[#1D768A] hover:bg-[#ccfbf1] sm:inline-flex"
+            class="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-[#1D768A] bg-[#f0fdfa] px-3 py-1.5 text-xs font-bold text-[#1D768A] hover:bg-[#ccfbf1]"
           >
-            Instalar App
+            Instalar<span class="hidden sm:inline">&nbsp;App</span>
           </button>
         }
 

@@ -1,6 +1,8 @@
 export interface LoginRequest {
   readonly correo: string;
   readonly contrasena: string;
+  /** "Mantener la sesión iniciada en este dispositivo". */
+  readonly recordar?: boolean;
 }
 
 export interface LoginResponseDto {
@@ -12,6 +14,8 @@ export interface LoginResponseDto {
   readonly idEmpleado: number | null;
   readonly nombreCompleto: string | null;
   readonly permisos: readonly string[];
+  readonly refreshToken?: string | null;
+  readonly refreshExpiraEn?: string | null;
 }
 
 export interface SolicitarRegistroRequest {

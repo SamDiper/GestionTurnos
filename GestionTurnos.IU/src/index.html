@@ -11,8 +11,17 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Turnos">
   <link rel="icon" type="image/png" href="/favicon.png">
-  <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180x180.png">
   <link rel="manifest" href="/manifest.webmanifest">
+  <script>
+    // El navegador puede ofrecer la instalación antes de que Angular arranque: se guarda el evento
+    // para que el aviso de instalación (PwaUpdateService) lo use cuando esté listo.
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      window.__eventoInstalacionPwa = e;
+      window.dispatchEvent(new Event('pwa-instalable'));
+    });
+  </script>
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased selection:bg-[#1D768A] selection:text-white">
   <app-root></app-root>
