@@ -71,6 +71,16 @@ cd "$API_DIR"
 dotnet user-secrets set "Database:Provider" "PostgreSql" >/dev/null
 dotnet user-secrets set "Database:ConnectionStringName" "PostgreSqlConnection" >/dev/null
 dotnet user-secrets set "ConnectionStrings:PostgreSqlConnection" "$CONN" >/dev/null
+if [[ -n "${SMTP_USERNAME:-}" && -n "${SMTP_PASSWORD:-}" ]]; then
+  dotnet user-secrets set "EmailSettings:Enabled" "true" >/dev/null
+  dotnet user-secrets set "EmailSettings:Host" "${SMTP_HOST:-smtp.gmail.com}" >/dev/null
+  dotnet user-secrets set "EmailSettings:Port" "${SMTP_PORT:-587}" >/dev/null
+  dotnet user-secrets set "EmailSettings:SecureSocket" "StartTls" >/dev/null
+  dotnet user-secrets set "EmailSettings:Username" "$SMTP_USERNAME" >/dev/null
+  dotnet user-secrets set "EmailSettings:Password" "${SMTP_PASSWORD// /}" >/dev/null
+  dotnet user-secrets set "EmailSettings:FromAddress" "${SMTP_FROM_ADDRESS:-$SMTP_USERNAME}" >/dev/null
+  ok "Correo SMTP habilitado ($SMTP_USERNAME)"
+fi
 ok "user-secrets configurados (ver: dotnet user-secrets list)"
 
 # --- 4. Restaurar y compilar ---------------------------------------------------

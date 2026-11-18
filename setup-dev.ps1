@@ -77,6 +77,19 @@ try {
     dotnet user-secrets set 'Database:Provider' 'PostgreSql' | Out-Null
     dotnet user-secrets set 'Database:ConnectionStringName' 'PostgreSqlConnection' | Out-Null
     dotnet user-secrets set 'ConnectionStrings:PostgreSqlConnection' $Conn | Out-Null
+    if ($cfg['SMTP_USERNAME'] -and $cfg['SMTP_PASSWORD']) {
+        $SmtpHost = if ($cfg['SMTP_HOST']) { $cfg['SMTP_HOST'] } else { 'smtp.gmail.com' }
+        $SmtpPort = if ($cfg['SMTP_PORT']) { $cfg['SMTP_PORT'] } else { '587' }
+        $SmtpFrom = if ($cfg['SMTP_FROM_ADDRESS']) { $cfg['SMTP_FROM_ADDRESS'] } else { $cfg['SMTP_USERNAME'] }
+        dotnet user-secrets set 'EmailSettings:Enabled' 'true' | Out-Null
+        dotnet user-secrets set 'EmailSettings:Host' $SmtpHost | Out-Null
+        dotnet user-secrets set 'EmailSettings:Port' $SmtpPort | Out-Null
+        dotnet user-secrets set 'EmailSettings:SecureSocket' 'StartTls' | Out-Null
+        dotnet user-secrets set 'EmailSettings:Username' $cfg['SMTP_USERNAME'] | Out-Null
+        dotnet user-secrets set 'EmailSettings:Password' ($cfg['SMTP_PASSWORD'] -replace '\s', '') | Out-Null
+        dotnet user-secrets set 'EmailSettings:FromAddress' $SmtpFrom | Out-Null
+        Ok "Correo SMTP habilitado ($($cfg['SMTP_USERNAME']))"
+    }
     Ok 'user-secrets configurados (ver: dotnet user-secrets list)'
 
     # --- 4. Compilar ---
