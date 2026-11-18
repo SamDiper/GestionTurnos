@@ -1,12 +1,14 @@
 using GestionTurnos.Api.Application.Behaviors.Notificaciones;
 using GestionTurnos.Api.Application.Common.Notificaciones;
 using GestionTurnos.Api.Application.Common.Security;
+using GestionTurnos.Api.Application.CQRS.Novedades;
 using GestionTurnos.Api.Application.CQRS.Seguridad.Auth;
 using GestionTurnos.Api.Application.CQRS.Seguridad.Registro;
 using GestionTurnos.Api.Application.CQRS.Turnos;
 using GestionTurnos.Api.Application.DTOs.Seguridad;
 using GestionTurnos.Api.Application.Interfaces;
 using GestionTurnos.Api.Application.Services.DosPasos;
+using GestionTurnos.Api.Application.Services.ReporteSemanal;
 using GestionTurnos.Api.Domain.Shared;
 using GestionTurnos.Api.Infrastructure.Integrations.Email;
 using GestionTurnos.Api.Infrastructure.Security;
@@ -20,7 +22,8 @@ namespace GestionTurnos.Api.Infrastructure.Extensions;
 
 /// <summary>
 /// Registro del servicio de correo: SMTP (Shared), cola + despachador en segundo plano, plantillas,
-/// verificación en dos pasos y notificaciones de registro y rotación de turnos.
+/// verificación en dos pasos, notificaciones (registro, turnos, vacaciones, novedades, cambios de turno)
+/// y reporte semanal al trabajador.
 /// </summary>
 public static class NotificacionesCorreoServiceCollectionExtensions
 {
@@ -70,6 +73,14 @@ public static class NotificacionesCorreoServiceCollectionExtensions
         services.AddTransient<IPipelineBehavior<PublicarAsignacionesTurnoCommand, Result<int>>, NotificarPublicacionTurnosBehavior>();
         services.AddTransient<IPipelineBehavior<ModificarAsignacionTurnoCommand, Result>, NotificarModificacionTurnoBehavior>();
         services.AddTransient<IPipelineBehavior<AnularAsignacionTurnoCommand, Result>, NotificarAnulacionTurnoBehavior>();
+        services.AddTransient<IPipelineBehavior<ResolverSolicitudVacacionesCommand, Result>, NotificarResolucionVacacionesBehavior>();
+        services.AddTransient<IPipelineBehavior<AnularVacacionesAprobadasCommand, Result>, NotificarAnulacionVacacionesBehavior>();
+        services.AddTransient<IPipelineBehavior<ResolverNovedadCommand, Result>, NotificarResolucionNovedadBehavior>();
+        services.AddTransient<IPipelineBehavior<ResolverCambioTurnoCommand, Result>, NotificarResolucionCambioTurnoBehavior>();
+
+        // 6. Reporte semanal al trabajador (programado en segundo plano)
+        services.AddScoped<IServicioReporteSemanal, ServicioReporteSemanal>();
+        services.AddHostedService<ReporteSemanalBackgroundService>();
 
         return services;
     }
